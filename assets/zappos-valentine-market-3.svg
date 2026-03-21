@@ -1,0 +1,8 @@
+<svg width="720" height="520" viewBox="0 0 720 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="520" rx="36" fill="#F6FAFF"/>
+  <text x="48" y="88" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="38" font-weight="700">Kids sneaker family pack</text>
+  <text x="48" y="134" fill="#667085" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="500">Family-friendly styles for Valentine's week</text>
+  <path d="M344 310C372 272 410 256 456 260C512 264 562 294 604 354L616 380H320L344 310Z" fill="#FFFFFF"/>
+  <path d="M320 392H620C614 432 582 464 534 472H392C352 466 328 436 320 392Z" fill="#4B8CF7"/>
+  <path d="M300 254C346 212 398 198 448 206C500 214 550 246 596 306" stroke="#2F2E3A" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

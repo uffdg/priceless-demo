@@ -1,0 +1,19 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" rx="48" fill="#FFF5F6"/>
+  <circle cx="1250" cy="180" r="120" fill="#FFD7E0"/>
+  <circle cx="1345" cy="280" r="64" fill="#FFC0D0"/>
+  <circle cx="250" cy="720" r="160" fill="#FFE6EA"/>
+  <rect x="92" y="92" width="420" height="96" rx="24" fill="#FFFFFF" opacity="0.92"/>
+  <text x="136" y="152" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="44" font-weight="700">Zappos</text>
+  <text x="92" y="314" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="110" font-weight="700">Valentine's Day</text>
+  <text x="92" y="438" fill="#E34B6F" font-family="Poppins, Arial, sans-serif" font-size="124" font-weight="800">2 for 1 Shoes</text>
+  <text x="92" y="522" fill="#6F6B79" font-family="Poppins, Arial, sans-serif" font-size="40" font-weight="500">Buy one pair, get one free on eligible styles through February 14.</text>
+  <rect x="92" y="600" width="250" height="82" rx="24" fill="#2F2E3A"/>
+  <text x="144" y="653" fill="#FFFFFF" font-family="Poppins, Arial, sans-serif" font-size="34" font-weight="600">Use code LOVE2X1</text>
+  <path d="M1060 480C1128 420 1194 406 1248 426C1296 444 1328 490 1336 534C1348 595 1316 670 1252 702C1192 732 1120 726 1064 684C1014 646 980 584 986 530C992 494 1016 454 1060 480Z" fill="#2F2E3A"/>
+  <path d="M1146 448C1210 394 1270 390 1314 412C1354 432 1378 474 1382 518C1388 576 1360 642 1302 678C1248 712 1186 706 1138 670C1096 638 1068 586 1070 542C1072 506 1092 472 1146 448Z" fill="#4A4957"/>
+  <path d="M1098 516C1128 470 1178 456 1240 466C1302 476 1354 514 1384 576L1402 612H1066L1098 516Z" fill="#FFFFFF"/>
+  <path d="M1064 620H1414C1414 670 1376 710 1318 710H1158C1104 710 1070 680 1064 620Z" fill="#E34B6F"/>
+  <path d="M992 266C1008 230 1040 214 1074 232C1106 248 1118 286 1094 312C1076 332 1046 334 1022 314C996 292 984 284 992 266Z" fill="#E34B6F"/>
+  <path d="M1086 214C1110 184 1146 182 1168 206C1188 228 1184 266 1154 286C1128 302 1100 296 1084 272C1068 248 1072 232 1086 214Z" fill="#FF8AA5"/>
+</svg>

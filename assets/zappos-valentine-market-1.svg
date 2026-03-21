@@ -1,0 +1,8 @@
+<svg width="720" height="520" viewBox="0 0 720 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="520" rx="36" fill="#FFF5F6"/>
+  <text x="48" y="88" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="38" font-weight="700">Zappos Valentine's 2 for 1</text>
+  <text x="48" y="134" fill="#6F6B79" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="500">Buy one pair, get one free</text>
+  <path d="M370 286C402 250 450 234 506 246C560 258 604 292 632 354L646 388H338L370 286Z" fill="#FFFFFF"/>
+  <path d="M338 398H652C648 438 620 470 574 478H430C386 472 350 440 338 398Z" fill="#E34B6F"/>
+  <path d="M336 224C392 176 458 162 516 180C564 196 606 232 640 298" stroke="#2F2E3A" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

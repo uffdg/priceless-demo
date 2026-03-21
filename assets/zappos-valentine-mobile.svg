@@ -1,0 +1,15 @@
+<svg width="640" height="720" viewBox="0 0 640 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="720" rx="40" fill="#FFF7F8"/>
+  <rect x="48" y="48" width="210" height="58" rx="18" fill="#FFFFFF"/>
+  <text x="76" y="87" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="28" font-weight="700">Zappos</text>
+  <text x="48" y="180" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="54" font-weight="700">2 for 1 shoes</text>
+  <text x="48" y="244" fill="#E34B6F" font-family="Poppins, Arial, sans-serif" font-size="54" font-weight="800">for Valentine's Day</text>
+  <text x="48" y="308" fill="#6F6B79" font-family="Poppins, Arial, sans-serif" font-size="24" font-weight="500">Eligible Waltmart Mastercard customers only.</text>
+  <rect x="48" y="356" width="206" height="56" rx="18" fill="#2F2E3A"/>
+  <text x="86" y="392" fill="#FFFFFF" font-family="Poppins, Arial, sans-serif" font-size="24" font-weight="600">Code LOVE2X1</text>
+  <path d="M298 434C338 388 380 374 422 382C456 390 488 414 514 464L532 500H288L298 434Z" fill="#FFFFFF"/>
+  <path d="M280 510H546C540 560 506 598 454 606H352C316 600 288 568 280 510Z" fill="#E34B6F"/>
+  <path d="M320 388C362 346 410 330 458 344C498 356 532 390 560 448" stroke="#2F2E3A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M472 164C492 136 526 134 546 156C564 176 560 212 532 230C510 244 484 238 470 214C458 192 458 182 472 164Z" fill="#FF8AA5"/>
+  <path d="M392 194C406 164 438 154 462 172C484 190 486 222 462 242C442 258 416 254 398 234C382 218 380 214 392 194Z" fill="#E34B6F"/>
+</svg>

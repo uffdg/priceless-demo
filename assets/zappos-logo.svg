@@ -1,0 +1,5 @@
+<svg width="320" height="120" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="120" rx="24" fill="#FFF8F8"/>
+  <path d="M54 35H138L82 85H138" stroke="#E34B6F" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="160" y="72" fill="#2F2E3A" font-family="Poppins, Arial, sans-serif" font-size="34" font-weight="700">Zappos</text>
+</svg>
