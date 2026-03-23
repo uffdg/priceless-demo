@@ -217,6 +217,7 @@ function initialState() {
       selectedDealId: null,
       reviewNotes: "",
       queueFilter: "all",
+      queueView: "list",   // "list" | "detail"
       rulesTab: "all",
       libraryTab: "all",
       confirmModal: null, // null | { action: "approve"|"reject"|"changes" }
@@ -224,6 +225,7 @@ function initialState() {
     // issuer publisher
     issuer: {
       libraryFilter: "all",
+      libraryView: "grid",     // "grid" | "activation"
       selectedDealId: null,
       activationStep: 0,        // 0=configure 1=preview 2=confirm
       activation: {
@@ -241,6 +243,14 @@ function initialState() {
       submitted: false,
       orchestratorDecision: null, // null | "approved" | "changes" | "rejected"
       issuerActivated: false,
+    },
+    // transient processing state (never persisted)
+    ui: {
+      processing: false,
+      processingType: null, // "submit-review"|"network-decision"|"activation-success"|"verify-otp"|"ai-scan"
+      processingLabel: "",
+      pendingDecision: null,
+      aiRunning: false,
     },
   };
 }
@@ -288,6 +298,7 @@ function loadState() {
     next.benefit = normalizeBenefitDraft({ ...def.benefit, ...(parsed.benefit || {}) });
     next.activePicker = null;
     next.network.confirmModal = null;
+    next.ui = def.ui; // always reset transient UI state on load
     return next;
   } catch { return initialState(); }
 }
@@ -304,8 +315,36 @@ function parseHash() {
 }
 
 function navigate(screen) {
+  // Reset inline sub-views when leaving their parent screens
+  if (screen !== S.networkQueue && screen !== S.networkDetail) {
+    state.network.queueView = "list";
+  }
+  if (screen !== S.issuerLibrary && screen !== S.issuerActivation) {
+    state.issuer.libraryView = "grid";
+  }
   state.screen = screen;
   window.location.hash = screen;
+  // AI scan animation when entering the AI analysis screen
+  if (screen === S.networkAI && !state.ui.processing) {
+    state.ui.processing = true;
+    state.ui.processingType = "ai-scan";
+    state.ui.processingLabel = "Running AI governance scan…";
+    save();
+    render();
+    setTimeout(() => {
+      if (state.ui.processingType !== "ai-scan") return;
+      state.ui.processingLabel = "Calculating confidence scores…";
+      render();
+      setTimeout(() => {
+        if (state.ui.processingType !== "ai-scan") return;
+        state.ui.processing = false;
+        state.ui.processingType = null;
+        state.ui.processingLabel = "";
+        render();
+      }, 900);
+    }, 1000);
+    return;
+  }
   save();
   render();
 }
@@ -688,7 +727,40 @@ function renderPreservingWizardFormScroll() {
   });
 }
 
+/* ─── PROCESSING OVERLAY ─────────────────────────────────────────────────── */
+function renderProcessingOverlay() {
+  const ui = state.ui;
+  if (ui.processingType === "activation-success") {
+    const confetti = Array.from({length:20}, (_,i) => {
+      const colors = ["#ff9e1b","#eb001b","#197a43","#004B9B","#9B59B6","#27AE60"];
+      const c = colors[i % colors.length];
+      return `<div class="confetti-particle" style="left:${Math.random()*100}%;animation-delay:${(Math.random()*1.2).toFixed(2)}s;animation-duration:${(1.2+Math.random()*0.8).toFixed(2)}s;background:${c}"></div>`;
+    }).join("");
+    return `<div class="processing-overlay">
+      ${confetti}
+      <div class="processing-card success-card">
+        <div class="processing-icon success">${icon("check-circle","ph-fill")}</div>
+        <div class="processing-title">Deal is Live!</div>
+        <div class="processing-sub">The Valentine's Day 2-for-1 Shoes deal is now active for BBVA members.</div>
+      </div>
+    </div>`;
+  }
+  const labels = {
+    "submit-review":    ui.processingLabel || "Submitting to Mastercard Governance…",
+    "network-decision": ui.processingLabel || "Recording decision…",
+    "verify-otp":       "Verifying code…",
+    "ai-scan":          ui.processingLabel || "Running AI governance scan…",
+  };
+  return `<div class="processing-overlay">
+    <div class="processing-card">
+      <div class="spinner"></div>
+      <div class="processing-title">${labels[ui.processingType] || "Processing…"}</div>
+    </div>
+  </div>`;
+}
+
 function renderScreen() {
+  if (state.ui && state.ui.processing) return renderProcessingOverlay();
   switch (state.screen) {
     case S.index:                return renderIndex();
     case S.merchantInvite:       return renderInvite();
@@ -794,7 +866,7 @@ function renderIndex() {
     {
       key: "issuer",
       icon: "buildings",
-      label: "Banco BVA · Issuer",
+      label: "BBVA · Issuer",
       title: "Issuer Publisher",
       persona: "Avery Coleman, Offer Manager",
       copy: "Discover approved deals, set activation details, and publish to your customers' channels.",
@@ -1087,6 +1159,32 @@ function renderBenefits() {
     </tr>`;
   }).join("");
 
+  const benefitBanner = !state.workflow.submitted ? `
+    <div class="scenario-banner">
+      ${icon("lightbulb")}
+      <div>
+        <strong>Nina's next step:</strong> Select <em>Valentine's Day 2-for-1 Shoes</em> in the table below, then click <strong>Request review</strong> to send it to the Mastercard Governance team.
+      </div>
+    </div>` : state.workflow.orchestratorDecision === "changes" ? `
+    <div class="scenario-banner warn">
+      ${icon("warning")}
+      <div>
+        <strong>Changes requested</strong> — the Mastercard team has asked you to update the deal before it can be approved. Review the feedback and resubmit.
+      </div>
+    </div>` : state.workflow.orchestratorDecision === "approved" ? `
+    <div class="scenario-banner success">
+      ${icon("check-circle")}
+      <div>
+        <strong>Approved!</strong> Your Valentine's Day deal was approved by Mastercard. BBVA will now activate it for their members.
+      </div>
+    </div>` : `
+    <div class="scenario-banner">
+      ${icon("clock")}
+      <div>
+        <strong>Under review</strong> — your deal is with the Mastercard Governance team. You'll be notified once a decision is made.
+      </div>
+    </div>`;
+
   const listPane = `
     <div class="page-header">
       <div class="page-header-left">
@@ -1097,6 +1195,7 @@ function renderBenefits() {
         </p>
       </div>
     </div>
+    ${benefitBanner}
     <div class="page-controls-row">
       <div class="search-bar">
         ${icon("magnifying-glass")}
@@ -1763,7 +1862,7 @@ function renderDashboard() {
     </tr>`).join("");
 
   const issuers = [
-    { name:"Banco BVA",    country:"🇦🇷", benefits:4, budget:"$22K", pct:74 },
+    { name:"BBVA",         country:"🇦🇷", benefits:4, budget:"$22K", pct:74 },
     { name:"BBVA Mexico",  country:"🇲🇽", benefits:3, budget:"$18K", pct:61 },
     { name:"Chase USA",    country:"🇺🇸", benefits:1, budget:"$10K", pct:31 },
   ];
@@ -1778,7 +1877,7 @@ function renderDashboard() {
     </div>`).join("");
 
   const activity = [
-    { icon:"check-circle", color:"var(--success)", text:'<strong>Banco BVA</strong> activated "Valentine\'s 2-for-1 Shoes"',    time:"2h ago" },
+    { icon:"check-circle", color:"var(--success)", text:'<strong>BBVA</strong> activated "Valentine\'s 2-for-1 Shoes"',    time:"2h ago" },
     { icon:"clock",        color:"var(--warning)", text:'<strong>Zappos</strong> submitted "Spring Sale 30% Off" for review',    time:"5h ago" },
     { icon:"x-circle",     color:"var(--danger)",  text:'<strong>Mastercard</strong> requested changes on "Back to School"',     time:"1d ago" },
     { icon:"gift",         color:"var(--brand)",   text:'<strong>BBVA Mexico</strong> activated "5% Cashback – Cashi"',          time:"2d ago" },
@@ -1975,11 +2074,11 @@ function renderDashboard() {
 /* ─── PARTNERSHIPS ───────────────────────────────────────────────────────── */
 const DEMO_ISSUERS = [
   {
-    id:"i1", name:"Banco BVA", country:"Argentina", flag:"🇦🇷",
-    initials:"BV", color:"#1A5276",
+    id:"i1", name:"BBVA", country:"Argentina", flag:"🇦🇷",
+    initials:"BB", color:"#004B9B",
     status:"Active", joinDate:"Jan 2024",
     activeBenefits:4, totalRedemptions:8302, budget:"$22,000",
-    contact:"partnerships@bva.com.ar",
+    contact:"loyalty@bbva.com",
     benefits:[
       { title:"Valentine's 2-for-1 Shoes", model:"Merchant", status:"Published", redemptions:4302 },
       { title:"5% Cashback – Cashi",        model:"Co-funded", status:"Published", redemptions:2100 },
@@ -2286,17 +2385,72 @@ const DEMO_QUEUE = [
   },
 ];
 
+/* Build a live Zappos queue deal from merchant wizard state */
+function buildLiveZapposDeal() {
+  const b = state.benefit;
+  const f = state.funding;
+  const base = DEMO_QUEUE[0];
+  // Dynamic rule overrides based on live merchant inputs
+  const ruleResults = base.ruleResults.map(r => {
+    if (r.ruleId === "r7") {
+      const hasImage = b.mediaAssets && b.mediaAssets.some(a => a.src);
+      return hasImage ? { ...r, verdict:"pass", note:"" } : r;
+    }
+    if (r.ruleId === "r8") {
+      return f.model === "cofunded"
+        ? r
+        : { ...r, verdict:"pass", note:"" };
+    }
+    return r;
+  });
+  return {
+    ...base,
+    title:            (b.title || "").trim()            || base.title,
+    discount:         (b.discountValue || "").trim()    || base.discount,
+    budget:           (f.totalBudget || "").trim()      || base.budget,
+    perRedemption:    (f.perRedemption || "").trim()    || base.perRedemption,
+    funding:          f.model                            || base.funding,
+    timezone:         b.timezone                         || base.timezone,
+    startDate:        b.startDate                        || base.startDate,
+    endDate:          b.withoutEnd ? "" : (b.endDate    || base.endDate),
+    activeDays:       b.activeDays                       || base.activeDays,
+    mediaTitle:       (b.mediaTitle || "").trim()        || base.mediaTitle,
+    mediaDescription: (b.description || "").trim()       || base.mediaDescription,
+    ruleResults,
+  };
+}
+
+/* Build the issuer library il1 entry from live merchant wizard state */
+function getIssuerZapposDeal() {
+  const b = state.benefit;
+  const f = state.funding;
+  const base = ISSUER_LIBRARY_DEALS[0];
+  const perR = (f.perRedemption || "").trim();
+  const budget = (f.totalBudget || "").trim();
+  return {
+    ...base,
+    title:         (b.title || "").trim()       || base.title,
+    funding:       f.model                       || base.funding,
+    discount:      perR  ? `$${perR}`            : base.discount,
+    perRedemption: perR  ? `$${perR}`            : base.perRedemption,
+    budget:        budget ? `$${Number(budget).toLocaleString()}` : base.budget,
+    description:   (b.description || "").trim() || base.description,
+    startDate:     b.startDate                   || base.startDate,
+    endDate:       b.withoutEnd ? "Open" : (b.endDate || base.endDate),
+    activeDays:    b.activeDays                  || base.activeDays,
+  };
+}
+
 function getQueueDeal(id) {
   const deal = DEMO_QUEUE.find(d => d.id === id) || DEMO_QUEUE[0];
-  // Zappos deal (q1) reflects live workflow state
+  // Zappos deal (q1) reflects live merchant wizard data + workflow state
   if (deal.id === "q1") {
     const d = state.workflow.orchestratorDecision;
     const status = d === "approved" ? "Approved"
       : d === "rejected" ? "Rejected"
       : d === "changes"  ? "Changes Requested"
-      : state.workflow.submitted ? "Pending"
       : "Pending";
-    return { ...deal, status };
+    return { ...buildLiveZapposDeal(), status };
   }
   return deal;
 }
@@ -2442,6 +2596,26 @@ function renderNetworkQueue() {
       </div>
       <p class="intro-text">Review merchant benefit submissions against governance rules. Approve, request changes, or reject deals before they reach issuers.</p>
 
+      ${!state.workflow.orchestratorDecision && state.workflow.submitted ? `
+      <div class="scenario-banner warn">
+        ${icon("clock-countdown")}
+        <div>
+          <strong>Marcus, action needed:</strong> The Zappos Valentine's Day submission is the primary demo deal — it has exceeded its SLA. Click <strong>Review</strong> on the first row to open the full governance checklist.
+        </div>
+      </div>` : state.workflow.orchestratorDecision ? `
+      <div class="scenario-banner success">
+        ${icon("check-circle")}
+        <div>
+          <strong>Decision recorded:</strong> You ${state.workflow.orchestratorDecision === "approved" ? "approved" : state.workflow.orchestratorDecision === "rejected" ? "rejected" : "requested changes on"} the Zappos deal. BBVA can now ${state.workflow.orchestratorDecision === "approved" ? "activate it for their members" : "see the outcome in their portal"}.
+        </div>
+      </div>` : `
+      <div class="scenario-banner">
+        ${icon("lightbulb")}
+        <div>
+          <strong>Demo tip:</strong> Have the merchant submit the Zappos deal first, then return here to review it.
+        </div>
+      </div>`}
+
       <div class="net-kpi-strip">${kpiHtml}</div>
 
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
@@ -2449,7 +2623,7 @@ function renderNetworkQueue() {
       </div>
 
       <div class="table-wrap">
-        <table>
+        <table class="queue-table">
           <thead><tr>
             <th>Submission</th>
             <th>Merchant</th>
@@ -2466,15 +2640,17 @@ function renderNetworkQueue() {
       </div>
     </div>`;
 
+  // If the user has selected "detail" view, render the deal detail inline
+  if (state.network.queueView === "detail" && state.network.selectedDealId) {
+    const deal = getQueueDeal(state.network.selectedDealId);
+    return networkShell(renderNetworkDetailContent(deal), S.networkQueue);
+  }
+
   return networkShell(content, S.networkQueue);
 }
 
-function renderNetworkDetail() {
-  const deal = state.network.selectedDealId
-    ? getQueueDeal(state.network.selectedDealId)
-    : DEMO_QUEUE[0];
-
-  if (!state.network.selectedDealId) state.network.selectedDealId = deal.id;
+/* Shared detail content used both inline (in queue) and as standalone screen */
+function renderNetworkDetailContent(deal) {
 
   const passCount = deal.ruleResults.filter(r => r.verdict === "pass").length;
   const warnCount = deal.ruleResults.filter(r => r.verdict === "warn").length;
@@ -2557,7 +2733,7 @@ function renderNetworkDetail() {
         </div>
       </div>
       ${state.network.reviewNotes ? `<div class="review-notes-display"><div class="review-notes-label">${icon("note")} Reviewer notes</div><div class="review-notes-text">${state.network.reviewNotes}</div></div>` : ""}
-      <a href="#${S.networkQueue}" class="btn btn-secondary" style="width:100%;justify-content:center;margin-top:16px">${icon("caret-left")} Back to queue</a>
+      <button class="btn btn-secondary" data-action="back-to-queue" style="width:100%;justify-content:center;margin-top:16px">${icon("caret-left")} Back to queue</button>
     </div>` : `
     <div class="decision-panel">
       <div class="decision-meta-card">
@@ -2627,7 +2803,7 @@ function renderNetworkDetail() {
   const content = `
     <div class="topbar">
       <div class="topbar-left">
-        <a href="#${S.networkQueue}" class="topbar-breadcrumb" style="color:var(--muted)">${icon("caret-left")} Queue</a>
+        <button class="topbar-breadcrumb btn-link" data-action="back-to-queue" style="color:var(--muted)">${icon("caret-left")} Queue</button>
         <span style="color:var(--line-strong);margin:0 8px">/</span>
         <span class="topbar-breadcrumb">${deal.title}</span>
       </div>
@@ -2743,7 +2919,15 @@ function renderNetworkDetail() {
     </div>
     ${modal}`;
 
-  return networkShell(content, S.networkQueue);
+  return content;
+}
+
+function renderNetworkDetail() {
+  const deal = state.network.selectedDealId
+    ? getQueueDeal(state.network.selectedDealId)
+    : DEMO_QUEUE[0];
+  if (!state.network.selectedDealId) state.network.selectedDealId = deal.id;
+  return networkShell(renderNetworkDetailContent(deal), S.networkQueue);
 }
 
 function renderNetworkAI() {
@@ -2942,7 +3126,7 @@ function renderNetworkRules() {
 function renderNetworkLibrary() {
   const libraryDeals = [
     { id:"l1", title:"Summer Getaway 15% Off Hotels",          merchant:"Marriott",  merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", approvedDate:"02/10/2026", issuer:"Chase USA",   status:"Approved", redemptions:2840 },
-    { id:"l2", title:"5% Cashback on Grocery — Q1",           merchant:"Kroger",    merchantColor:"#1B5E20", merchantInitials:"KR", funding:"issuer",   approvedDate:"01/22/2026", issuer:"Banco BVA",  status:"Approved", redemptions:6120 },
+    { id:"l2", title:"5% Cashback on Grocery — Q1",           merchant:"Kroger",    merchantColor:"#1B5E20", merchantInitials:"KR", funding:"issuer",   approvedDate:"01/22/2026", issuer:"BBVA",       status:"Approved", redemptions:6120 },
     { id:"l3", title:"$50 Off First Smart TV Purchase",        merchant:"Samsung",   merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", approvedDate:"03/01/2026", issuer:"BBVA Mexico",status:"Approved", redemptions:1330 },
     { id:"l4", title:"Free Delivery — 30 Days",               merchant:"DoorDash",  merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", approvedDate:"12/05/2025", issuer:"Chase USA",   status:"Approved", redemptions:9200 },
     { id:"l5", title:"Back-to-School Laptop Bonus (revised)", merchant:"BestBuy",   merchantColor:"#0D47A1", merchantInitials:"BB", funding:"issuer",   approvedDate:"—",          issuer:"Pending",     status:"Approved", redemptions:0    },
@@ -3161,7 +3345,7 @@ function issuerShell(content, activePath) {
           <div class="user-avatar" style="background:#117A65">AC</div>
           <div class="user-info">
             <div class="user-name">Avery Coleman</div>
-            <div class="user-role">Offer Manager · Banco BVA</div>
+            <div class="user-role">Offer Manager · BBVA</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -3186,7 +3370,9 @@ function renderIssuerLibrary() {
       ${c === "all" ? "All categories" : c}
     </button>`).join("");
 
-  const deals = filter === "all" ? ISSUER_LIBRARY_DEALS : ISSUER_LIBRARY_DEALS.filter(d => d.category === filter);
+  // Zappos il1 reflects live merchant wizard data
+  const liveLibrary = ISSUER_LIBRARY_DEALS.map(d => d.id === "il1" ? getIssuerZapposDeal() : d);
+  const deals = filter === "all" ? liveLibrary : liveLibrary.filter(d => d.category === filter);
 
   // Zappos deal (il1) shows "New" badge when just approved by orchestrator
   const zapposNewlyApproved = state.workflow.orchestratorDecision === "approved"
@@ -3226,7 +3412,7 @@ function renderIssuerLibrary() {
   }).join("");
 
   // Detail panel when a deal is selected
-  const selDeal = ISSUER_LIBRARY_DEALS.find(d => d.id === sel);
+  const selDeal = sel === "il1" ? getIssuerZapposDeal() : ISSUER_LIBRARY_DEALS.find(d => d.id === sel);
   const dayLabels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
   const detailPane = selDeal ? `
@@ -3293,6 +3479,26 @@ function renderIssuerLibrary() {
           </div>
           <p class="intro-text">Browse all deals approved by the Network Orchestrator. Activate a deal to configure your segment, budget, and publication channels for your members.</p>
 
+          ${zapposNewlyApproved ? `
+          <div class="scenario-banner success">
+            ${icon("check-circle")}
+            <div>
+              <strong>Avery, action needed:</strong> The Zappos Valentine's Day deal was just approved by Mastercard. It's highlighted in the grid — click it, then hit <strong>Activate</strong> to configure your BBVA offer parameters.
+            </div>
+          </div>` : state.issuer.activatedDeals.includes("il1") ? `
+          <div class="scenario-banner success">
+            ${icon("rocket-launch")}
+            <div>
+              <strong>Deal is live!</strong> The Zappos Valentine's Day deal is active for BBVA members. Check the Lifecycle tab to manage it.
+            </div>
+          </div>` : !state.workflow.orchestratorDecision ? `
+          <div class="scenario-banner">
+            ${icon("lightbulb")}
+            <div>
+              <strong>Demo tip:</strong> No deals have been approved yet. Have the Mastercard team review and approve the Zappos submission first.
+            </div>
+          </div>` : ""}
+
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">${chips}</div>
 
           <div class="issuer-deals-grid">${cards}</div>
@@ -3301,15 +3507,20 @@ function renderIssuerLibrary() {
       ${detailPane}
     </div>`;
 
+  // Activation wizard opens inline within library
+  if (state.issuer.libraryView === "activation") {
+    return renderIssuerActivation(true);
+  }
+
   return issuerShell(content, S.issuerLibrary);
 }
 
 /* ─── ISSUER ACTIVATION WIZARD ───────────────────────────────────────────── */
-function renderIssuerActivation() {
+function renderIssuerActivation(inline = false) {
   const step = state.issuer.activationStep;
   const act = state.issuer.activation;
   const dealId = state.issuer.selectedDealId || "il1";
-  const deal = ISSUER_LIBRARY_DEALS.find(d => d.id === dealId) || ISSUER_LIBRARY_DEALS[0];
+  const deal = dealId === "il1" ? getIssuerZapposDeal() : (ISSUER_LIBRARY_DEALS.find(d => d.id === dealId) || ISSUER_LIBRARY_DEALS[0]);
   const fundingLabel = { merchant:"Merchant", cofunded:"Co-funded", issuer:"Issuer" };
 
   const steps = [
@@ -3420,7 +3631,7 @@ function renderIssuerActivation() {
           <div class="act-preview-channel-label">${icon("envelope")} Email</div>
           <div class="act-preview-email">
             <div class="act-email-subject">New offer available: ${deal.title}</div>
-            <div class="act-email-from">offers@bancobva.com.ar</div>
+            <div class="act-email-from">offers@bbva.com</div>
             <div class="act-email-body">
               <div class="act-email-hero">${deal.merchant}</div>
               <div class="act-email-title">${deal.title}</div>
@@ -3467,7 +3678,10 @@ function renderIssuerActivation() {
       ${act.notes ? `<div class="act-section"><div class="review-notes-display"><div class="review-notes-label">${icon("note")} Internal notes</div><div class="review-notes-text">${act.notes}</div></div></div>` : ""}`;
   }
 
-  const footerLeft = step > 0 ? `<button class="btn btn-secondary" data-act-back>← Back</button>` : `<a href="#${S.issuerLibrary}" class="btn btn-secondary">← Library</a>`;
+  const backToLibrary = inline
+    ? `<button class="btn btn-secondary" data-action="back-to-library">← Library</button>`
+    : `<a href="#${S.issuerLibrary}" class="btn btn-secondary">← Library</a>`;
+  const footerLeft = step > 0 ? `<button class="btn btn-secondary" data-act-back>← Back</button>` : backToLibrary;
   const footerRight = step < 2
     ? `<button class="btn btn-primary" data-act-next>Continue →</button>`
     : `<button class="btn btn-primary" style="background:var(--success);border-color:var(--success)" data-action="confirm-activation">${icon("rocket-launch")} Confirm activation</button>`;
@@ -3475,7 +3689,9 @@ function renderIssuerActivation() {
   const content = `
     <div class="topbar">
       <div class="topbar-left">
-        <a href="#${S.issuerLibrary}" class="topbar-breadcrumb" style="color:var(--muted)">${icon("caret-left")} Library</a>
+        ${inline
+          ? `<button class="topbar-breadcrumb btn-link" data-action="back-to-library" style="color:var(--muted)">${icon("caret-left")} Library</button>`
+          : `<a href="#${S.issuerLibrary}" class="topbar-breadcrumb" style="color:var(--muted)">${icon("caret-left")} Library</a>`}
         <span style="color:var(--line-strong);margin:0 8px">/</span>
         <span class="topbar-breadcrumb">Activate deal</span>
       </div>
@@ -3723,7 +3939,7 @@ function renderIssuerLifecycle() {
           <a href="#${S.issuerLibrary}" class="btn btn-primary">${icon("plus")} Activate new deal</a>
         </div>
       </div>
-      <p class="intro-text">Manage all deals activated by Banco BVA. Pause or resume deals at any time. Expired deals are archived automatically.</p>
+      <p class="intro-text">Manage all deals activated by BBVA. Pause or resume deals at any time. Expired deals are archived automatically.</p>
 
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
         ${[
@@ -4078,13 +4294,14 @@ function bindEvents() {
     });
   });
 
-  // review button → navigate to detail
+  // review button → open inline detail view within the queue screen
   document.querySelectorAll("[data-nav-deal]").forEach(el => {
     el.addEventListener("click", e => {
       e.stopPropagation();
       state.network.selectedDealId = el.dataset.navDeal;
+      state.network.queueView = "detail";
       save();
-      navigate(S.networkDetail);
+      render();
     });
   });
 
@@ -4132,14 +4349,15 @@ function bindEvents() {
     });
   });
 
-  // activate deal button → go to activation wizard
+  // activate deal button → open activation inline within library screen
   document.querySelectorAll("[data-activate-deal]").forEach(el => {
     el.addEventListener("click", e => {
       e.stopPropagation();
       state.issuer.selectedDealId = el.dataset.activateDeal;
       state.issuer.activationStep = 0;
+      state.issuer.libraryView = "activation";
       save();
-      navigate(S.issuerActivation);
+      render();
     });
   });
 
@@ -4242,7 +4460,15 @@ function handleAction(action, el) {
       navigate(S.merchantOtp);
       break;
     case "verify-otp":
-      navigate(S.merchantOnboard);
+      state.ui.processing = true;
+      state.ui.processingType = "verify-otp";
+      render();
+      setTimeout(() => {
+        if (state.ui.processingType !== "verify-otp") return;
+        state.ui.processing = false;
+        state.ui.processingType = null;
+        navigate(S.merchantOnboard);
+      }, 900);
       break;
     case "complete-onboard":
       state.company.name     = document.getElementById("co-name")?.value    || state.company.name;
@@ -4317,6 +4543,14 @@ function handleAction(action, el) {
       state.selectedIssuerId = null;
       save(); render();
       break;
+    case "back-to-queue":
+      state.network.queueView = "list";
+      save(); navigate(S.networkQueue);
+      break;
+    case "back-to-library":
+      state.issuer.libraryView = "grid";
+      save(); navigate(S.issuerLibrary);
+      break;
     case "close-library-deal":
       state.network.selectedDealId = null;
       save(); render();
@@ -4332,20 +4566,38 @@ function handleAction(action, el) {
     case "confirm-decision": {
       const decision = el.dataset.decision;
       state.network.confirmModal = null;
-      if (decision === "approve") {
-        state.workflow.orchestratorDecision = "approved";
-        const b = state.benefits.find(b => b.status === "Pending");
-        if (b) b.status = "Approved";
-      } else if (decision === "reject") {
-        state.workflow.orchestratorDecision = "rejected";
-        const b = state.benefits.find(b => b.status === "Pending");
-        if (b) b.status = "Rejected";
-      } else {
-        state.workflow.orchestratorDecision = "changes";
-        const b = state.benefits.find(b => b.status === "Pending");
-        if (b) b.status = "Changes Requested";
-      }
-      save(); render();
+      state.ui.processing = true;
+      state.ui.processingType = "network-decision";
+      state.ui.processingLabel = "Recording decision…";
+      state.ui.pendingDecision = decision;
+      render();
+      setTimeout(() => {
+        if (state.ui.processingType !== "network-decision") return;
+        state.ui.processingLabel = "Notifying merchant…";
+        render();
+        setTimeout(() => {
+          if (state.ui.processingType !== "network-decision") return;
+          const dec = state.ui.pendingDecision;
+          if (dec === "approve") {
+            state.workflow.orchestratorDecision = "approved";
+            const b = state.benefits.find(b => b.status === "Pending");
+            if (b) b.status = "Approved";
+          } else if (dec === "reject") {
+            state.workflow.orchestratorDecision = "rejected";
+            const b = state.benefits.find(b => b.status === "Pending");
+            if (b) b.status = "Rejected";
+          } else {
+            state.workflow.orchestratorDecision = "changes";
+            const b = state.benefits.find(b => b.status === "Pending");
+            if (b) b.status = "Changes Requested";
+          }
+          state.ui.processing = false;
+          state.ui.processingType = null;
+          state.ui.processingLabel = "";
+          state.ui.pendingDecision = null;
+          save(); navigate(S.networkQueue);
+        }, 900);
+      }, 1100);
       break;
     }
     case "close-issuer-lib-deal":
@@ -4358,8 +4610,16 @@ function handleAction(action, el) {
         state.issuer.activatedDeals.push(dealId);
       }
       state.workflow.issuerActivated = true;
+      state.ui.processing = true;
+      state.ui.processingType = "activation-success";
       save();
-      navigate(S.issuerLifecycle);
+      render();
+      setTimeout(() => {
+        if (state.ui.processingType !== "activation-success") return;
+        state.ui.processing = false;
+        state.ui.processingType = null;
+        navigate(S.issuerLifecycle);
+      }, 2600);
       break;
     }
     case "reset-demo":
@@ -4371,9 +4631,23 @@ function handleAction(action, el) {
       state.workflow.submitted = true;
       state.selectedBenefitId = saveWizardBenefitToList("Pending");
       state.editingBenefitId = null;
+      state.ui.processing = true;
+      state.ui.processingType = "submit-review";
+      state.ui.processingLabel = "Submitting to Mastercard Governance…";
       save();
-      alert("Benefit submitted for review! The Network Orchestrator will review it shortly.");
-      navigate(S.merchantBenefits);
+      render();
+      setTimeout(() => {
+        if (state.ui.processingType !== "submit-review") return;
+        state.ui.processingLabel = "Notifying Governance team…";
+        render();
+        setTimeout(() => {
+          if (state.ui.processingType !== "submit-review") return;
+          state.ui.processing = false;
+          state.ui.processingType = null;
+          state.ui.processingLabel = "";
+          navigate(S.merchantBenefits);
+        }, 1000);
+      }, 1400);
       break;
     case "save-benefit":
     case "save-draft":
