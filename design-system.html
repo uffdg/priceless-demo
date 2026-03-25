@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Priceless — Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  <style>
+    :root {
+      --font: "Plus Jakarta Sans", "Poppins", sans-serif;
+      --brand: #E07820; --brand-deep: #C85A0A; --brand-soft: #FFF6EE; --brand-line: #F5C88A;
+      --bg: #F5F5F7; --surface: #FFFFFF; --surface-2: #F9F9FA;
+      --line: #EBEBED; --line-strong: #D8D8DC;
+      --text: #111114; --muted: #717179; --muted-light: #9898A2;
+      --success: #197A43; --success-soft: #E8F5EE;
+      --warning: #9A5700; --warning-soft: #FFF3E0;
+      --danger: #B32020; --danger-soft: #FCEAEA;
+      --info: #1A5FA8; --info-soft: #EAF2FC;
+      --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px; --r-full: 9999px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.06);
+      --shadow: 0 2px 12px rgba(0,0,0,.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); font-size: 14px; line-height: 1.5; color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
+
+    .page { max-width: 1360px; margin: 0 auto; padding: 64px 48px; }
+    .page-header { margin-bottom: 72px; }
+    .page-header h1 { font-size: 40px; font-weight: 800; letter-spacing: -1.5px; margin-bottom: 8px; }
+    .page-header p { font-size: 15px; color: var(--muted); max-width: 560px; }
+
+    .section { margin-bottom: 72px; }
+    .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding-bottom: 14px; border-bottom: 1.5px solid var(--line); margin-bottom: 32px; display: flex; align-items: center; gap: 10px; }
+    .section-title span { background: var(--brand); color: #fff; border-radius: var(--r-full); padding: 2px 8px; font-size: 9px; }
+
+    .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+    .col { display: flex; flex-direction: column; gap: 12px; }
+    .label { font-size: 10px; color: var(--muted); margin-top: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+
+    /* Colors */
+    .swatch-group { display: flex; flex-direction: column; gap: 8px; }
+    .swatch-group-title { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    .swatches { display: flex; gap: 3px; }
+    .swatch { width: 60px; height: 60px; border-radius: var(--r-sm); border: 1px solid rgba(0,0,0,.07); display: flex; flex-direction: column; justify-content: flex-end; padding: 0 5px 5px; }
+    .sw-name { font-size: 8.5px; font-weight: 700; color: rgba(255,255,255,.9); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+    .sw-name.dk { color: rgba(0,0,0,.45); text-shadow: none; }
+    .sw-hex  { font-size: 7.5px; font-weight: 500; color: rgba(255,255,255,.7); text-shadow: 0 1px 2px rgba(0,0,0,.3); }
+    .sw-hex.dk  { color: rgba(0,0,0,.35); text-shadow: none; }
+
+    /* Typography */
+    .type-sample { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 20px; display: flex; align-items: baseline; gap: 24px; }
+    .type-spec { min-width: 180px; font-size: 10px; color: var(--muted); font-family: monospace; flex-shrink: 0; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--r-sm); font-weight: 600; cursor: pointer; border: none; font-family: var(--font); transition: all .15s; line-height: 1; }
+    .btn-primary   { background: var(--brand); color: #fff; padding: 10px 18px; font-size: 13.5px; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1.5px solid var(--line-strong); padding: 9px 17px; font-size: 13.5px; }
+    .btn-ghost     { background: transparent; color: var(--brand); padding: 9px 14px; font-size: 13.5px; }
+    .btn-danger    { background: var(--danger-soft); color: var(--danger); padding: 9px 17px; font-size: 13.5px; border: 1.5px solid #f5c0c0; }
+    .btn-sm        { padding: 6px 12px !important; font-size: 12px !important; border-radius: var(--r-xs) !important; }
+    .btn-icon-only { width: 36px; height: 36px; padding: 0; justify-content: center; background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-sm); color: var(--muted); font-size: 16px; }
+    .btn[disabled] { opacity: .4; cursor: not-allowed; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--r-full); font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-pending   { background: var(--warning-soft); color: var(--warning); }
+    .badge-approved  { background: var(--success-soft); color: var(--success); }
+    .badge-rejected  { background: var(--danger-soft);  color: var(--danger); }
+    .badge-published { background: var(--success-soft); color: var(--success); }
+    .badge-paused    { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+    .badge-review    { background: var(--info-soft);    color: var(--info); }
+    .badge-changes   { background: var(--warning-soft); color: var(--warning); }
+    .badge-active    { background: var(--success-soft); color: var(--success); }
+    .badge-expired   { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+
+    /* Inputs */
+    .form-group { display: flex; flex-direction: column; gap: 5px; min-width: 220px; }
+    .form-label { font-size: 12px; font-weight: 600; }
+    .form-input, .form-select, .form-textarea { padding: 9px 12px; border: 1.5px solid var(--line-strong); border-radius: var(--r-sm); font-size: 13px; font-family: var(--font); color: var(--text); background: var(--surface); outline: none; }
+    .form-input:focus, .form-select:focus { border-color: var(--brand); }
+    .form-input.is-error { border-color: var(--danger); }
+    .form-hint  { font-size: 11px; color: var(--muted); }
+    .form-error { font-size: 11px; color: var(--danger); display: flex; align-items: center; gap: 3px; }
+    .form-textarea { min-height: 72px; resize: vertical; }
+
+    /* Pills */
+    .funding-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--r-full); font-size: 11px; font-weight: 600; }
+    .funding-pill.merchant { background: var(--brand-soft); color: var(--brand-deep); }
+    .funding-pill.cofunded { background: var(--info-soft); color: var(--info); }
+    .funding-pill.issuer   { background: var(--success-soft); color: var(--success); }
+
+    .verdict-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--r-xs); font-size: 11px; font-weight: 600; }
+    .verdict-tag.pass { background: var(--success-soft); color: var(--success); }
+    .verdict-tag.warn { background: var(--warning-soft); color: var(--warning); }
+    .verdict-tag.fail { background: var(--danger-soft);  color: var(--danger); }
+
+    .sla-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--r-xs); font-size: 11px; font-weight: 600; }
+    .sla-ok   { background: var(--success-soft); color: var(--success); }
+    .sla-warn { background: var(--warning-soft); color: var(--warning); }
+    .sla-over { background: var(--danger-soft); color: var(--danger); }
+
+    .day-pill { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--brand); color: #fff; }
+    .day-pill.off { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+
+    .meta-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-full); font-size: 12px; color: var(--muted); }
+    .meta-chip strong { color: var(--text); }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--r-md); padding: 20px; }
+
+    .kpi-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 18px; display: flex; align-items: center; gap: 12px; min-width: 190px; }
+    .kpi-icon { width: 38px; height: 38px; border-radius: var(--r-sm); display: grid; place-items: center; font-size: 17px; flex-shrink: 0; }
+    .kpi-icon.brand   { background: var(--brand-soft); color: var(--brand); }
+    .kpi-icon.success { background: var(--success-soft); color: var(--success); }
+    .kpi-icon.info    { background: var(--info-soft); color: var(--info); }
+    .kpi-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -.5px; line-height: 1.2; }
+
+    /* Nav items */
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all .12s; }
+    .nav-item.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+
+    /* Avatars */
+    .avatar { border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; }
+    .avatar.sz-sm { width: 32px; height: 32px; font-size: 11px; }
+    .avatar.sz-md { width: 40px; height: 40px; font-size: 14px; }
+    .avatar.sz-lg { width: 48px; height: 48px; font-size: 16px; }
+
+    /* Wizard steps */
+    .stepbar { display: flex; align-items: center; }
+    .step { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .step-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; border: 2px solid var(--line-strong); color: var(--muted); background: var(--surface); }
+    .step-dot.done   { border-color: var(--success); background: var(--success); color: #fff; }
+    .step-dot.active { border-color: var(--brand);   background: var(--brand);   color: #fff; }
+    .step-lbl { font-size: 10px; color: var(--muted); text-align: center; max-width: 72px; font-weight: 500; }
+    .step-lbl.active { color: var(--brand); font-weight: 700; }
+    .connector { width: 56px; height: 2px; background: var(--line); margin-bottom: 22px; }
+    .connector.done { background: var(--success); }
+
+    /* Sidebar */
+    .sidebar { width: 228px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 16px 0; overflow: hidden; }
+    .sb-brand { padding: 8px 16px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+    .sb-nav { padding: 0 8px; display: flex; flex-direction: column; gap: 2px; }
+    .sb-user { padding: 12px 16px 0; border-top: 1px solid var(--line); margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+    .sb-user-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
+    .sb-user-role { font-size: 10px; color: var(--muted); }
+
+    /* Scenarios banner */
+    .banner { padding: 12px 16px; border-radius: var(--r-sm); display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; }
+    .banner.info    { background: var(--info-soft);    border-left: 3px solid var(--info); }
+    .banner.success { background: var(--success-soft); border-left: 3px solid var(--success); }
+    .banner.warning { background: var(--warning-soft); border-left: 3px solid var(--warning); }
+
+    /* Table */
+    .tbl { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); }
+    .tbl th { background: var(--surface-2); padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); border-bottom: 1px solid var(--line); }
+    .tbl td { padding: 11px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .tbl tr:last-child td { border-bottom: none; }
+
+    /* Modal */
+    .modal-wrap { background: rgba(0,0,0,.32); padding: 32px; border-radius: var(--r-xl); display: inline-flex; }
+    .modal { background: var(--surface); border-radius: var(--r-lg); padding: 28px; width: 420px; box-shadow: var(--shadow-lg); }
+    .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .modal-body  { font-size: 13.5px; color: var(--muted); margin-bottom: 24px; line-height: 1.55; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* Processing overlay sample */
+    .overlay-sample { background: rgba(255,255,255,.92); border-radius: var(--r-xl); padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 16px; min-width: 280px; text-align: center; border: 1px solid var(--line); }
+    .spinner { width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--brand); animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Radius / shadow demos */
+    .r-box { background: var(--brand-soft); border: 2px solid var(--brand-line); width: 56px; height: 56px; }
+    .sh-box { background: var(--surface); width: 72px; height: 56px; border-radius: var(--r-md); display: grid; place-items: center; font-size: 10px; color: var(--muted); font-weight: 700; }
+
+    /* Spacing bar */
+    .sp-bar { background: var(--brand); border-radius: 3px; height: 6px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <svg width="40" height="26" viewBox="0 0 38 24"><circle cx="14" cy="12" r="11" fill="#EB001B"/><circle cx="24" cy="12" r="11" fill="#F79E1B" opacity=".88"/><path d="M19 4.8a11 11 0 0 1 0 14.4A11 11 0 0 1 19 4.8z" fill="#FF5F00"/></svg>
+      <div>
+        <h1>Priceless Deal Orchestrator</h1>
+        <p>Design System · Tokens, Components & Patterns · by Qurable for Mastercard</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 01 COLOR TOKENS -->
+  <div class="section">
+    <div class="section-title"><span>01</span> Color Tokens</div>
+    <div class="row">
+
+      <div class="swatch-group">
+        <div class="swatch-group-title">Brand — Orange</div>
+        <div class="swatches">
+          <div><div class="swatch" style="background:#E07820"><span class="sw-name">brand</span><span class="sw-hex">#E07820</span></div><div class="label">--brand</div></div>
+          <div><div class="swatch" style="background:#C85A0A"><span class="sw-name">deep</span><span class="sw-hex">#C85A0A</span></div><div class="label">--brand-deep</div></div>
+          <div><div class="swatch" style="background:#FFF6EE;"><span class="sw-name dk">soft</span><span class="sw-hex dk">#FFF6EE</span></div><div class="label">--brand-soft</div></div>
+          <div><div class="swatch" style="background:#F5C88A"><span class="sw-name dk">line</span><span class="sw-hex dk">#F5C88A</span></div><div class="label">--brand-line</div></div>
+        </div>
+      </div>
+
+      <div class="swatch-group">
+        <div class="swatch-group-title">Neutrals</div>
+        <div class="swatches">
+          <div><div class="swatch" style="background:#111114"><span class="sw-name">text</span><span class="sw-hex">#111114</span></div><div class="label">--text</div></div>
+          <div><div class="swatch" style="background:#717179"><span class="sw-name">muted</span><span class="sw-hex">#717179</span></div><div class="label">--muted</div></div>
+          <div><div class="swatch" style="background:#9898A2"><span class="sw-name">light</span><span class="sw-hex">#9898A2</span></div><div class="label">--muted-light</div></div>
+          <div><div class="swatch" style="background:#D8D8DC"><span class="sw-name dk">strong</span><span class="sw-hex dk">#D8D8DC</span></div><div class="label">--line-strong</div></div>
+          <div><div class="swatch" style="background:#EBEBED"><span class="sw-name dk">line</span><span class="sw-hex dk">#EBEBED</span></div><div class="label">--line</div></div>
+          <div><div class="swatch" style="background:#F9F9FA"><span class="sw-name dk">surface-2</span><span class="sw-hex dk">#F9F9FA</span></div><div class="label">--surface-2</div></div>
+          <div><div class="swatch" style="background:#FFFFFF"><span class="sw-name dk">surface</span><span class="sw-hex dk">#FFF</span></div><div class="label">--surface</div></div>
+          <div><div class="swatch" style="background:#F5F5F7"><span class="sw-name dk">bg</span><span class="sw-hex dk">#F5F5F7</span></div><div class="label">--bg</div></div>
+        </div>
+      </div>
+
+      <div class="swatch-group">
+        <div class="swatch-group-title">Semantic</div>
+        <div class="swatches">
+          <div><div class="swatch" style="background:#197A43"><span class="sw-name">success</span><span class="sw-hex">#197A43</span></div><div class="label">--success</div></div>
+          <div><div class="swatch" style="background:#E8F5EE"><span class="sw-name dk">soft</span><span class="sw-hex dk">#E8F5EE</span></div><div class="label">--success-soft</div></div>
+          <div><div class="swatch" style="background:#9A5700"><span class="sw-name">warning</span><span class="sw-hex">#9A5700</span></div><div class="label">--warning</div></div>
+          <div><div class="swatch" style="background:#FFF3E0"><span class="sw-name dk">soft</span><span class="sw-hex dk">#FFF3E0</span></div><div class="label">--warning-soft</div></div>
+          <div><div class="swatch" style="background:#B32020"><span class="sw-name">danger</span><span class="sw-hex">#B32020</span></div><div class="label">--danger</div></div>
+          <div><div class="swatch" style="background:#FCEAEA"><span class="sw-name dk">soft</span><span class="sw-hex dk">#FCEAEA</span></div><div class="label">--danger-soft</div></div>
+          <div><div class="swatch" style="background:#1A5FA8"><span class="sw-name">info</span><span class="sw-hex">#1A5FA8</span></div><div class="label">--info</div></div>
+          <div><div class="swatch" style="background:#EAF2FC"><span class="sw-name dk">soft</span><span class="sw-hex dk">#EAF2FC</span></div><div class="label">--info-soft</div></div>
+        </div>
+      </div>
+
+      <div class="swatch-group">
+        <div class="swatch-group-title">Mastercard</div>
+        <div class="swatches">
+          <div><div class="swatch" style="background:#EB001B"><span class="sw-name">mc-red</span><span class="sw-hex">#EB001B</span></div></div>
+          <div><div class="swatch" style="background:#F79E1B"><span class="sw-name dk">mc-orange</span><span class="sw-hex dk">#F79E1B</span></div></div>
+          <div><div class="swatch" style="background:#FF5F00"><span class="sw-name">mc-blend</span><span class="sw-hex">#FF5F00</span></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 02 TYPOGRAPHY -->
+  <div class="section">
+    <div class="section-title"><span>02</span> Typography · Plus Jakarta Sans</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="type-sample"><div class="type-spec">Display · 40 / 800 / -1.5px</div><span style="font-size:40px;font-weight:800;letter-spacing:-1.5px">Priceless Platform</span></div>
+      <div class="type-sample"><div class="type-spec">H1 · 28 / 800 / -.8px</div><span style="font-size:28px;font-weight:800;letter-spacing:-.8px">Deal Orchestrator</span></div>
+      <div class="type-sample"><div class="type-spec">H2 · 22 / 700 / -.5px</div><span style="font-size:22px;font-weight:700;letter-spacing:-.5px">Valentine's Day 2-for-1</span></div>
+      <div class="type-sample"><div class="type-spec">H3 · 18 / 700 / -.4px</div><span style="font-size:18px;font-weight:700;letter-spacing:-.4px">Zappos — Merchant Admin</span></div>
+      <div class="type-sample"><div class="type-spec">H4 · 15 / 700</div><span style="font-size:15px;font-weight:700">Governance Rules Engine</span></div>
+      <div class="type-sample"><div class="type-spec">Body · 14 / 400</div><span>Buy one pair, get one free for Valentine's Day. Valid Feb 1–14 at participating Zappos stores.</span></div>
+      <div class="type-sample"><div class="type-spec">Body-sm · 13 / 500</div><span style="font-size:13px;font-weight:500">Eligible BBVA Mastercard customers only. Max one redemption per card.</span></div>
+      <div class="type-sample"><div class="type-spec">Caption · 11 / 600 / uppercase</div><span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Funding Model</span></div>
+      <div class="type-sample"><div class="type-spec">Mono · 11 / 500</div><span style="font-size:11px;font-family:monospace;color:var(--muted)">STATE_VERSION = 4 · #E07820</span></div>
+    </div>
+  </div>
+
+  <!-- 03 SPACING & RADII -->
+  <div class="section">
+    <div class="section-title"><span>03</span> Spacing, Radii & Shadows</div>
+    <div class="row">
+      <div>
+        <div class="label" style="margin-bottom:14px;font-size:11px">Spacing Scale</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:4px"></div><code style="font-size:10px;color:var(--muted)">4px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:8px"></div><code style="font-size:10px;color:var(--muted)">8px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:12px"></div><code style="font-size:10px;color:var(--muted)">12px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:16px"></div><code style="font-size:10px;color:var(--muted)">16px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:20px"></div><code style="font-size:10px;color:var(--muted)">20px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:24px"></div><code style="font-size:10px;color:var(--muted)">24px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:32px"></div><code style="font-size:10px;color:var(--muted)">32px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:48px"></div><code style="font-size:10px;color:var(--muted)">48px</code></div>
+          <div style="display:flex;align-items:center;gap:12px"><div class="sp-bar" style="width:64px"></div><code style="font-size:10px;color:var(--muted)">64px</code></div>
+        </div>
+      </div>
+      <div style="margin-left:32px">
+        <div class="label" style="margin-bottom:14px;font-size:11px">Border Radius</div>
+        <div class="row">
+          <div style="text-align:center"><div class="r-box" style="border-radius:6px"></div><div class="label">xs · 6</div></div>
+          <div style="text-align:center"><div class="r-box" style="border-radius:10px"></div><div class="label">sm · 10</div></div>
+          <div style="text-align:center"><div class="r-box" style="border-radius:14px"></div><div class="label">md · 14</div></div>
+          <div style="text-align:center"><div class="r-box" style="border-radius:18px"></div><div class="label">lg · 18</div></div>
+          <div style="text-align:center"><div class="r-box" style="border-radius:24px"></div><div class="label">xl · 24</div></div>
+          <div style="text-align:center"><div class="r-box" style="border-radius:999px;height:28px;width:56px"></div><div class="label">full</div></div>
+        </div>
+      </div>
+      <div style="margin-left:32px">
+        <div class="label" style="margin-bottom:14px;font-size:11px">Shadows</div>
+        <div class="row">
+          <div style="text-align:center"><div class="sh-box" style="box-shadow:0 1px 4px rgba(0,0,0,.06)">sm</div><div class="label">shadow-sm</div></div>
+          <div style="text-align:center"><div class="sh-box" style="box-shadow:0 2px 12px rgba(0,0,0,.08)">md</div><div class="label">shadow</div></div>
+          <div style="text-align:center"><div class="sh-box" style="box-shadow:0 8px 32px rgba(0,0,0,.12)">lg</div><div class="label">shadow-lg</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 BUTTONS -->
+  <div class="section">
+    <div class="section-title"><span>04</span> Buttons</div>
+    <div class="row" style="align-items:center">
+      <div style="text-align:center"><button class="btn btn-primary"><i class="ph ph-plus"></i> Primary</button><div class="label">primary</div></div>
+      <div style="text-align:center"><button class="btn btn-secondary"><i class="ph ph-pencil"></i> Secondary</button><div class="label">secondary</div></div>
+      <div style="text-align:center"><button class="btn btn-ghost"><i class="ph ph-eye"></i> Ghost</button><div class="label">ghost</div></div>
+      <div style="text-align:center"><button class="btn btn-danger"><i class="ph ph-x-circle"></i> Danger</button><div class="label">danger</div></div>
+      <div style="text-align:center"><button class="btn btn-primary btn-sm">Small</button><div class="label">sm modifier</div></div>
+      <div style="text-align:center"><button class="btn btn-icon-only"><i class="ph ph-dots-three-vertical"></i></button><div class="label">icon-only</div></div>
+      <div style="text-align:center"><button class="btn btn-primary" disabled><i class="ph ph-lock"></i> Disabled</button><div class="label">disabled</div></div>
+    </div>
+  </div>
+
+  <!-- 05 BADGES -->
+  <div class="section">
+    <div class="section-title"><span>05</span> Status Badges</div>
+    <div class="row" style="align-items:center">
+      <div style="text-align:center"><span class="badge badge-pending"><i class="ph ph-clock"></i> Pending</span><div class="label">pending</div></div>
+      <div style="text-align:center"><span class="badge badge-approved"><i class="ph ph-check-circle"></i> Approved</span><div class="label">approved</div></div>
+      <div style="text-align:center"><span class="badge badge-rejected"><i class="ph ph-x-circle"></i> Rejected</span><div class="label">rejected</div></div>
+      <div style="text-align:center"><span class="badge badge-published"><i class="ph ph-broadcast"></i> Published</span><div class="label">published</div></div>
+      <div style="text-align:center"><span class="badge badge-paused"><i class="ph ph-pause-circle"></i> Paused</span><div class="label">paused</div></div>
+      <div style="text-align:center"><span class="badge badge-review"><i class="ph ph-magnifying-glass"></i> In Review</span><div class="label">review</div></div>
+      <div style="text-align:center"><span class="badge badge-changes"><i class="ph ph-warning"></i> Changes Req.</span><div class="label">changes</div></div>
+      <div style="text-align:center"><span class="badge badge-active"><i class="ph ph-lightning"></i> Active</span><div class="label">active</div></div>
+      <div style="text-align:center"><span class="badge badge-expired">Expired</span><div class="label">expired</div></div>
+    </div>
+  </div>
+
+  <!-- 06 MICRO COMPONENTS -->
+  <div class="section">
+    <div class="section-title"><span>06</span> Micro Components</div>
+    <div class="row" style="gap:40px">
+
+      <div class="col">
+        <div class="label" style="font-size:11px">Funding Pills</div>
+        <span class="funding-pill merchant"><i class="ph ph-storefront"></i> Merchant-funded</span>
+        <span class="funding-pill cofunded"><i class="ph ph-handshake"></i> Co-funded</span>
+        <span class="funding-pill issuer"><i class="ph ph-bank"></i> Issuer-funded</span>
+      </div>
+
+      <div class="col">
+        <div class="label" style="font-size:11px">Verdict Tags</div>
+        <span class="verdict-tag pass"><i class="ph ph-check-circle"></i> Compliant</span>
+        <span class="verdict-tag warn"><i class="ph ph-warning"></i> Review needed</span>
+        <span class="verdict-tag fail"><i class="ph ph-x-circle"></i> Violation</span>
+      </div>
+
+      <div class="col">
+        <div class="label" style="font-size:11px">SLA Chips</div>
+        <span class="sla-chip sla-ok"><i class="ph ph-check"></i> On time · 2d left</span>
+        <span class="sla-chip sla-warn"><i class="ph ph-warning"></i> Due soon · 1d</span>
+        <span class="sla-chip sla-over"><i class="ph ph-x"></i> Overdue · 3d</span>
+      </div>
+
+      <div class="col">
+        <div class="label" style="font-size:11px">Day Pills (M–Su)</div>
+        <div style="display:flex;gap:4px">
+          <span class="day-pill">M</span><span class="day-pill">T</span>
+          <span class="day-pill off">W</span><span class="day-pill">T</span>
+          <span class="day-pill">F</span><span class="day-pill off">S</span><span class="day-pill off">S</span>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="label" style="font-size:11px">Meta Chips</div>
+        <span class="meta-chip"><i class="ph ph-calendar-blank"></i> Feb 1 → Feb 14, 2026</span>
+        <span class="meta-chip"><i class="ph ph-coins"></i> Funding: <strong>Merchant</strong></span>
+        <span class="meta-chip"><i class="ph ph-users"></i> ~40% · <strong>3,265</strong></span>
+      </div>
+
+      <div class="col">
+        <div class="label" style="font-size:11px">Avatars</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="avatar sz-lg" style="background:#E07820">NW</div>
+          <div class="avatar sz-md" style="background:#1A5FA8">MP</div>
+          <div class="avatar sz-sm" style="background:#197A43">AC</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">Nina · Marcus · Avery</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 07 FORM ELEMENTS -->
+  <div class="section">
+    <div class="section-title"><span>07</span> Form Elements</div>
+    <div class="row">
+      <div class="form-group">
+        <label class="form-label">Deal title</label>
+        <input class="form-input" value="Valentine's Day 2-for-1 Shoes" />
+        <span class="form-hint">Max 80 characters · 38 used</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Benefit type</label>
+        <select class="form-select">
+          <option>Cashback</option>
+          <option selected>BOGO — Buy One Get One</option>
+          <option>Percentage Discount</option>
+        </select>
+      </div>
+      <div class="form-group" style="min-width:280px">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea">Buy one pair of shoes, get one free. Valid on all regular-price items at participating Zappos stores.</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Budget (error)</label>
+        <input class="form-input is-error" value="500" />
+        <span class="form-error"><i class="ph ph-warning"></i> Below $1,000 minimum</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Input — focused</label>
+        <input class="form-input" style="border-color:var(--brand)" value="$40.00" />
+        <span class="form-hint">Per redemption cap</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 08 CARDS -->
+  <div class="section">
+    <div class="section-title"><span>08</span> Cards</div>
+    <div class="row">
+
+      <!-- KPI -->
+      <div class="col">
+        <div class="label" style="font-size:11px">KPI Cards</div>
+        <div class="kpi-card"><div class="kpi-icon brand"><i class="ph ph-coins"></i></div><div><div class="kpi-label">Total Budget</div><div class="kpi-value">$50,000</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon success"><i class="ph ph-check-circle"></i></div><div><div class="kpi-label">Redemptions</div><div class="kpi-value">923</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon info"><i class="ph ph-users"></i></div><div><div class="kpi-label">Eligible members</div><div class="kpi-value">3,265</div></div></div>
+      </div>
+
+      <!-- Actor card -->
+      <div class="col">
+        <div class="label" style="font-size:11px">Actor Card</div>
+        <div class="card" style="width:272px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-size:20px"><i class="ph ph-storefront"></i></div>
+            <div>
+              <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Benefit Creator</div>
+              <div style="font-size:16px;font-weight:700">Merchant</div>
+            </div>
+          </div>
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:14px">Create and submit promotional offers with targeting, budget and validity controls.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)">
+            <span style="font-size:11px;color:var(--muted)">Nina Watts · Zappos</span>
+            <button class="btn btn-primary btn-sm">Enter <i class="ph ph-arrow-right"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deal card with ribbon -->
+      <div class="col">
+        <div class="label" style="font-size:11px">Deal Card — "Just approved" ribbon</div>
+        <div class="card" style="width:280px;border-color:var(--success);position:relative;overflow:hidden">
+          <div style="position:absolute;top:10px;right:-22px;background:var(--success);color:#fff;font-size:9px;font-weight:700;padding:3px 26px;transform:rotate(35deg)">Just approved</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <div style="width:38px;height:38px;border-radius:10px;background:#ff9e1b;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff">ZP</div>
+            <div><div style="font-weight:700;font-size:13.5px">Valentine's 2-for-1 Shoes</div><div style="font-size:11px;color:var(--muted)">Zappos</div></div>
+          </div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
+            <span class="badge badge-approved" style="font-size:10px"><i class="ph ph-check-circle"></i> Approved</span>
+            <span class="funding-pill merchant" style="font-size:10px">Merchant-funded</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:12px">
+            <div><span style="font-weight:600">Budget:</span> $50,000</div>
+            <div><span style="font-weight:600">Expires:</span> Feb 14</div>
+          </div>
+          <div style="display:flex;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm">Activate <i class="ph ph-lightning"></i></button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 09 SCENARIO BANNERS -->
+  <div class="section">
+    <div class="section-title"><span>09</span> Scenario / Narrative Banners</div>
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:680px">
+      <div class="banner info"><i class="ph ph-info" style="color:var(--info);font-size:17px;flex-shrink:0;margin-top:1px"></i><div><strong>Nina, action needed:</strong> You have a deal ready for review. Click <strong>Submit for review</strong> to send it to Mastercard's governance team.</div></div>
+      <div class="banner success"><i class="ph ph-check-circle" style="color:var(--success);font-size:17px;flex-shrink:0;margin-top:1px"></i><div><strong>Approved!</strong> Your Valentine's Day deal was approved by Mastercard. BBVA will now activate it for their members.</div></div>
+      <div class="banner warning"><i class="ph ph-warning" style="color:var(--warning);font-size:17px;flex-shrink:0;margin-top:1px"></i><div><strong>Changes requested:</strong> The deal requires adjustments before Mastercard can approve it. Review the feedback below.</div></div>
+    </div>
+  </div>
+
+  <!-- 10 WIZARD PROGRESS -->
+  <div class="section">
+    <div class="section-title"><span>10</span> Step / Progress Bars</div>
+
+    <div class="label" style="font-size:11px;margin-bottom:12px">Merchant Wizard — 6 steps (step 3 active)</div>
+    <div style="background:var(--surface);padding:20px 28px;border-radius:var(--r-md);border:1px solid var(--line);display:inline-flex;margin-bottom:24px">
+      <div class="stepbar">
+        <div class="step"><div class="step-dot done"><i class="ph ph-check"></i></div><div class="step-lbl">Basic</div></div>
+        <div class="connector done"></div>
+        <div class="step"><div class="step-dot done"><i class="ph ph-check"></i></div><div class="step-lbl">Offer</div></div>
+        <div class="connector done"></div>
+        <div class="step"><div class="step-dot active">3</div><div class="step-lbl active">Targeting</div></div>
+        <div class="connector"></div>
+        <div class="step"><div class="step-dot">4</div><div class="step-lbl">Validity</div></div>
+        <div class="connector"></div>
+        <div class="step"><div class="step-dot">5</div><div class="step-lbl">Funding</div></div>
+        <div class="connector"></div>
+        <div class="step"><div class="step-dot">6</div><div class="step-lbl">Media</div></div>
+      </div>
+    </div>
+
+    <div class="label" style="font-size:11px;margin-bottom:12px">Issuer Activation — 4 steps (step 2 active)</div>
+    <div style="background:var(--surface);padding:20px 28px;border-radius:var(--r-md);border:1px solid var(--line);display:inline-flex">
+      <div class="stepbar">
+        <div class="step"><div class="step-dot done"><i class="ph ph-check"></i></div><div class="step-lbl">Segment</div></div>
+        <div class="connector done"></div>
+        <div class="step"><div class="step-dot active">2</div><div class="step-lbl active">Budget &amp; Channels</div></div>
+        <div class="connector"></div>
+        <div class="step"><div class="step-dot">3</div><div class="step-lbl">Schedule</div></div>
+        <div class="connector"></div>
+        <div class="step"><div class="step-dot">4</div><div class="step-lbl">Confirm</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11 SIDEBAR NAVIGATION -->
+  <div class="section">
+    <div class="section-title"><span>11</span> Sidebar Navigation — 3 variants</div>
+    <div class="row">
+
+      <div>
+        <div class="label" style="font-size:11px;margin-bottom:10px">Merchant (Zappos)</div>
+        <div class="sidebar">
+          <div class="sb-brand">
+            <div style="width:30px;height:30px;border-radius:8px;background:#ff9e1b;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff">ZP</div>
+            <div><div style="font-size:12.5px;font-weight:700">Zappos</div><div style="font-size:10px;color:var(--muted)">Merchant Portal</div></div>
+          </div>
+          <div class="sb-nav">
+            <div class="nav-item active"><i class="ph ph-gauge"></i> Dashboard</div>
+            <div class="nav-item"><i class="ph ph-gift"></i> My Benefits</div>
+            <div class="nav-item"><i class="ph ph-plus-circle"></i> Create New</div>
+            <div class="nav-item"><i class="ph ph-handshake"></i> Partnerships</div>
+          </div>
+          <div class="sb-user">
+            <div class="avatar sz-sm" style="background:#E07820">NW</div>
+            <div><div class="sb-user-name">Nina Watts</div><div class="sb-user-role">Merchant Admin</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="label" style="font-size:11px;margin-bottom:10px">Network (Mastercard)</div>
+        <div class="sidebar">
+          <div class="sb-brand">
+            <svg width="26" height="17" viewBox="0 0 38 24"><circle cx="14" cy="12" r="11" fill="#EB001B"/><circle cx="24" cy="12" r="11" fill="#F79E1B" opacity=".88"/></svg>
+            <div><div style="font-size:12.5px;font-weight:700">Network</div><div style="font-size:10px;color:var(--muted)">Orchestrator</div></div>
+          </div>
+          <div class="sb-nav">
+            <div class="nav-item active" style="justify-content:space-between"><span style="display:flex;align-items:center;gap:10px"><i class="ph ph-stack"></i> Review Queue</span> <span style="background:var(--danger);color:#fff;border-radius:10px;font-size:9px;padding:1px 6px">3</span></div>
+            <div class="nav-item"><i class="ph ph-robot"></i> AI Analysis</div>
+            <div class="nav-item"><i class="ph ph-shield-check"></i> Gov. Rules</div>
+            <div class="nav-item"><i class="ph ph-books"></i> Deal Library</div>
+          </div>
+          <div class="sb-user">
+            <div class="avatar sz-sm" style="background:#1A5FA8">MP</div>
+            <div><div class="sb-user-name">Marcus Patel</div><div class="sb-user-role">Network Admin</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="label" style="font-size:11px;margin-bottom:10px">Issuer (BBVA)</div>
+        <div class="sidebar">
+          <div class="sb-brand">
+            <div style="background:#004A97;border-radius:5px;padding:3px 6px;display:inline-grid;place-items:center"><span style="font-size:9px;font-weight:800;color:#fff;letter-spacing:.5px">BBVA</span></div>
+            <div style="margin-left:4px"><div style="font-size:12.5px;font-weight:700">BBVA</div><div style="font-size:10px;color:var(--muted)">Issuer Publisher</div></div>
+          </div>
+          <div class="sb-nav">
+            <div class="nav-item active"><i class="ph ph-books"></i> Offer Library</div>
+            <div class="nav-item"><i class="ph ph-chart-bar"></i> Analytics</div>
+            <div class="nav-item"><i class="ph ph-activity"></i> Lifecycle</div>
+          </div>
+          <div class="sb-user">
+            <div class="avatar sz-sm" style="background:#197A43">AC</div>
+            <div><div class="sb-user-name">Avery Coleman</div><div class="sb-user-role">Offer Manager · BBVA</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 12 MODAL + OVERLAY -->
+  <div class="section">
+    <div class="section-title"><span>12</span> Modal & Processing Overlay</div>
+    <div class="row">
+
+      <div>
+        <div class="label" style="font-size:11px;margin-bottom:10px">Confirm Dialog</div>
+        <div class="modal-wrap">
+          <div class="modal">
+            <div class="modal-title">Approve this deal?</div>
+            <div class="modal-body">This will mark the Zappos Valentine's Day deal as <strong>Approved</strong> and notify BBVA to activate it for their members. This action cannot be undone.</div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary">Cancel</button>
+              <button class="btn btn-primary"><i class="ph ph-check-circle"></i> Confirm Approval</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="label" style="font-size:11px;margin-bottom:10px">Processing Overlay</div>
+        <div class="overlay-sample">
+          <div class="spinner"></div>
+          <div style="font-weight:700;font-size:15px">Submitting for review…</div>
+          <div style="font-size:12px;color:var(--muted)">Sending to Mastercard governance team</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 13 DATA TABLE -->
+  <div class="section">
+    <div class="section-title"><span>13</span> Data Table</div>
+    <table class="tbl">
+      <thead>
+        <tr><th>Submission</th><th>Merchant</th><th>Funding</th><th>Submitted</th><th>SLA</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div style="font-weight:600;font-size:13px">Valentine's Day 2-for-1 Shoes</div><div style="font-size:11px;color:var(--muted)">Zappos · $50,000 budget</div></td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:6px;background:#ff9e1b;display:grid;place-items:center;font-size:8px;font-weight:800;color:#fff">ZP</div>Zappos</div></td>
+          <td><span class="funding-pill merchant">Merchant</span></td>
+          <td style="color:var(--muted);font-size:12px">Mar 18, 2026</td>
+          <td><span class="sla-chip sla-ok"><i class="ph ph-check"></i> 2d left</span></td>
+          <td><span class="badge badge-pending"><i class="ph ph-clock"></i> Pending</span></td>
+          <td><button class="btn btn-primary btn-sm">Review</button></td>
+        </tr>
+        <tr>
+          <td><div style="font-weight:600;font-size:13px">Early Bird — Summer Collection</div><div style="font-size:11px;color:var(--muted)">Nordstrom · $30,000</div></td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:6px;background:#1a1a2e;display:grid;place-items:center;font-size:8px;font-weight:800;color:#fff">NO</div>Nordstrom</div></td>
+          <td><span class="funding-pill cofunded">Co-funded</span></td>
+          <td style="color:var(--muted);font-size:12px">Mar 20, 2026</td>
+          <td><span class="sla-chip sla-warn"><i class="ph ph-warning"></i> 1d left</span></td>
+          <td><span class="badge badge-review"><i class="ph ph-magnifying-glass"></i> In Review</span></td>
+          <td><button class="btn btn-secondary btn-sm">Continue</button></td>
+        </tr>
+        <tr>
+          <td><div style="font-weight:600;font-size:13px">Tech Bundle — Q2 Promo</div><div style="font-size:11px;color:var(--muted)">Best Buy · $75,000</div></td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="width:22px;height:22px;border-radius:6px;background:#003B8E;display:grid;place-items:center;font-size:8px;font-weight:800;color:#fff">BB</div>Best Buy</div></td>
+          <td><span class="funding-pill issuer">Issuer</span></td>
+          <td style="color:var(--muted);font-size:12px">Mar 15, 2026</td>
+          <td><span class="sla-chip sla-over"><i class="ph ph-x"></i> 3d over</span></td>
+          <td><span class="badge badge-changes"><i class="ph ph-warning"></i> Changes Req.</span></td>
+          <td><button class="btn btn-ghost btn-sm">View</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</body>
+</html>

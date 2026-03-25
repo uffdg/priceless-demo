@@ -27,7 +27,7 @@ const S = {
 /* ─── DEMO DATA ──────────────────────────────────────────────────────────── */
 const DEMO_BENEFITS = [
   { id:"b1", title:"Enjoy a delicious breakfast at Spot with 50% off", assigned:400,  used:400,  status:"Pending",   color:"#9B59B6", initials:"SP" },
-  { id:"b2", title:"Get 5% cashback all March with your Cashi payment", assigned:4853, used:4853, status:"Published", color:"#2E86C1", initials:"CA" },
+  { id:"b2", title:"Get 5% cashback all March with Apple Pay",          assigned:4853, used:4853, status:"Published", color:"#2E86C1", initials:"AP" },
   { id:"b3", title:"20% Off pantry essentials",                         assigned:100,  used:100,  status:"Published", color:"#27AE60", initials:"PE" },
   { id:"b4", title:"15% Off school shoes",                              assigned:7000, used:7000, status:"Published", color:"#2C3E50", initials:"SS" },
   { id:"b5", title:"$300 Bonus on select smartphones",                  assigned:7000, used:7000, status:"Published", color:"#1A5276", initials:"PH" },
@@ -56,26 +56,46 @@ const DEMO_BENEFIT_DETAIL = {
 
 function defaultBenefitDraft() {
   return {
-    title: "Valentine's Day 2-for-1 Shoes",
+    title: "",
     description: "",
-    type: "cashback",
-    discountValue: "40",
+    type: "",
+    discountValue: "",
     productCode: "",
-    hasProductCode: true,
-    timezone: "Buenos Aires, Argentina (GMT -3:00)",
-    startDate: "09/17/2025",
-    startTime: "12:00 AM",
+    hasProductCode: false,
+    timezone: "",
+    startDate: "",
+    startTime: "",
     endDate: "",
     endTime: "",
     withoutEnd: true,
-    activeDays: [1,2,3,4,5],
-    mediaTitle: "Chasback: $40",
+    activeDays: [],
+    mediaTitle: "",
     mediaDescription: "",
     mediaAssets: [
       { id: "label", label: "Main", name: "", src: "", title: "", alt: "" },
       { id: "secondary", label: "Secondary", name: "", src: "", title: "", alt: "" },
       { id: "extra", label: "Extra", name: "", src: "", title: "", alt: "", optional: true },
     ],
+  };
+}
+
+function defaultFundingDraft() {
+  return {
+    model: "",
+    merchantPct: 70,
+    totalBudget: "",
+    perRedemption: "",
+  };
+}
+
+function normalizeFundingDraft(funding) {
+  return {
+    ...defaultFundingDraft(),
+    ...(funding || {}),
+    model: cleanFieldValue(funding?.model),
+    totalBudget: cleanFieldValue(funding?.totalBudget),
+    perRedemption: cleanFieldValue(funding?.perRedemption),
+    merchantPct: Number.isFinite(Number(funding?.merchantPct)) ? Number(funding.merchantPct) : 70,
   };
 }
 
@@ -113,6 +133,13 @@ function buildMockMediaAsset(kind, title, sub) {
 
 function loadBenefitIntoWizard(benefitId) {
   const selected = state.benefits.find(b => b.id === benefitId);
+  if (selected?.draft) {
+    state.editingBenefitId = benefitId;
+    state.wizardTab = "basic";
+    state.benefit = normalizeBenefitDraft({ ...defaultBenefitDraft(), ...selected.draft });
+    state.funding = normalizeFundingDraft(selected.funding);
+    return;
+  }
   const detail = { ...DEMO_BENEFIT_DETAIL, title: selected?.title || DEMO_BENEFIT_DETAIL.title };
   state.editingBenefitId = benefitId;
   state.wizardTab = "basic";
@@ -157,14 +184,41 @@ function initialsFromTitle(title) {
   return (parts.slice(0, 2).map(part => part[0]).join("") || "BN").toUpperCase();
 }
 
-function saveWizardBenefitToList(status) {
-  const title = cleanFieldValue(state.benefit.title) || DEMO_BENEFIT_DETAIL.title;
+function markCurrentBenefitDirtyForReview() {
+  if (!state.editingBenefitId) return;
+  const current = state.benefits.find(b => b.id === state.editingBenefitId);
+  if (!current || !current.reviewRequested) return;
+  const wasDirty = Boolean(current.reviewDirty);
+  current.reviewDirty = true;
+  if (!wasDirty) {
+    const footerBtn = document.querySelector('.wizard-footer [data-action="request-review"], .wizard-footer button[disabled]');
+    if (footerBtn) {
+      footerBtn.disabled = false;
+      footerBtn.dataset.action = "request-review";
+      footerBtn.className = "btn btn-primary";
+      footerBtn.style.opacity = "";
+      footerBtn.style.cursor = "";
+      footerBtn.innerHTML = "Request review →";
+    }
+  }
+}
+
+function saveWizardBenefitToList(status, options = {}) {
+  const title = cleanFieldValue(state.benefit.title) || "Untitled benefit";
+  const draft = normalizeBenefitDraft({ ...state.benefit });
+  const funding = normalizeFundingDraft(state.funding);
+  const reviewRequested = options.reviewRequested ?? false;
+  const reviewDirty = options.reviewDirty ?? false;
   if (state.editingBenefitId) {
     const current = state.benefits.find(b => b.id === state.editingBenefitId);
     if (current) {
       current.title = title;
       current.status = status;
       current.initials = initialsFromTitle(title);
+      current.draft = draft;
+      current.funding = funding;
+      current.reviewRequested = reviewRequested;
+      current.reviewDirty = reviewDirty;
       return current.id;
     }
   }
@@ -178,6 +232,10 @@ function saveWizardBenefitToList(status) {
     status,
     color: "#E07820",
     initials: initialsFromTitle(title),
+    draft,
+    funding,
+    reviewRequested,
+    reviewDirty,
   });
   return id;
 }
@@ -202,12 +260,7 @@ function initialState() {
     wizardTab: "basic",
     benefit: defaultBenefitDraft(),
     // funding model
-    funding: {
-      model: "merchant", // "merchant" | "cofunded" | "issuer"
-      merchantPct: 70,
-      totalBudget: "50000",
-      perRedemption: "40",
-    },
+    funding: defaultFundingDraft(),
     // partnerships selected issuer
     selectedIssuerId: null,
     partnershipsStatus: "all",
@@ -215,6 +268,7 @@ function initialState() {
     // network orchestrator
     network: {
       selectedDealId: null,
+      aiView: "list",     // "list" | "detail"
       reviewNotes: "",
       queueFilter: "all",
       queueView: "list",   // "list" | "detail"
@@ -304,14 +358,64 @@ function loadState() {
 }
 
 const state = loadState();
+applyUrlPreset();
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function parseHash() {
+  // Allow ?s=screen-name query param to override (used for Figma captures)
+  const qs = new URLSearchParams(window.location.search).get("s");
+  if (qs) return qs;
   const h = window.location.hash.replace(/^#/, "");
   return h || S.index;
+}
+
+/* Apply URL presets before first render — used for Figma multi-state captures */
+function applyUrlPreset() {
+  const p = new URLSearchParams(window.location.search).get("preset");
+  if (!p) return;
+  const presets = {
+    // ── Merchant wizard steps ─────────────────────────────────────────────
+    "wizard-basic":      () => { state.wizardTab = "basic";      state.screen = S.merchantNew; },
+    "wizard-offer":      () => { state.wizardTab = "offer";      state.screen = S.merchantNew; },
+    "wizard-targeting":  () => { state.wizardTab = "targeting";  state.screen = S.merchantNew; },
+    "wizard-validity":   () => { state.wizardTab = "validity";   state.screen = S.merchantNew; },
+    "wizard-funding":    () => { state.wizardTab = "funding";    state.screen = S.merchantNew; },
+    "wizard-media":      () => { state.wizardTab = "media";      state.screen = S.merchantNew; },
+    // ── Merchant other ────────────────────────────────────────────────────
+    "merchant-benefits": () => { state.screen = S.merchantBenefits; },
+    "merchant-partnerships": () => { state.screen = S.merchantPartnerships; },
+    "merchant-review":   () => { state.screen = S.merchantNew; state.wizardTab = "review"; },
+    // ── Network ───────────────────────────────────────────────────────────
+    "network-queue":     () => { state.screen = S.networkQueue; state.network.queueView = "list"; },
+    "network-detail":    () => { state.screen = S.networkQueue; state.network.selectedDealId = "q1"; state.network.queueView = "detail"; },
+    "network-ai":        () => { state.screen = S.networkAI; state.network.aiView = "list"; },
+    "network-rules":     () => { state.screen = S.networkRules; },
+    "network-library":   () => { state.screen = S.networkLibrary; },
+    "network-library-panel": () => { state.screen = S.networkLibrary; state.network.selectedLibraryDealId = "l1"; },
+    // ── Issuer ────────────────────────────────────────────────────────────
+    "issuer-library":    () => { state.screen = S.issuerLibrary; state.issuer.libraryView = "grid"; },
+    "issuer-library-panel": () => {
+      state.screen = S.issuerLibrary;
+      state.issuer.libraryView = "detail";
+      state.issuer.selectedDealId = "il1";
+      // Simulate approved deal so panel shows correctly
+      state.workflow.orchestratorDecision = "approved";
+    },
+    "issuer-activation-step0": () => { state.screen = S.issuerActivation; state.issuer.activationStep = 0; },
+    "issuer-activation-step1": () => { state.screen = S.issuerActivation; state.issuer.activationStep = 1; },
+    "issuer-activation-step2": () => { state.screen = S.issuerActivation; state.issuer.activationStep = 2; },
+    "issuer-activation-step3": () => { state.screen = S.issuerActivation; state.issuer.activationStep = 3; },
+    "issuer-analytics":  () => { state.screen = S.issuerAnalytics; },
+    "issuer-lifecycle":  () => { state.screen = S.issuerLifecycle; },
+    // ── Full demo flow states ──────────────────────────────────────────────
+    "flow-submitted":    () => { state.workflow.submitted = true; state.merchantOnboarded = true; state.screen = S.merchantBenefits; },
+    "flow-approved":     () => { state.workflow.submitted = true; state.workflow.orchestratorDecision = "approved"; state.screen = S.networkQueue; },
+    "flow-activated":    () => { state.workflow.submitted = true; state.workflow.orchestratorDecision = "approved"; state.workflow.issuerActivated = true; state.screen = S.issuerLifecycle; },
+  };
+  if (presets[p]) presets[p]();
 }
 
 function navigate(screen) {
@@ -323,9 +427,12 @@ function navigate(screen) {
     state.issuer.libraryView = "grid";
   }
   state.screen = screen;
-  window.location.hash = screen;
+  // Don't overwrite hash when a Figma capture is in progress
+  if (!window.location.hash.includes("figmacapture")) {
+    window.location.hash = screen;
+  }
   // AI scan animation when entering the AI analysis screen
-  if (screen === S.networkAI && !state.ui.processing) {
+  if (screen === S.networkAI && state.network.aiView === "detail" && !state.ui.processing) {
     state.ui.processing = true;
     state.ui.processingType = "ai-scan";
     state.ui.processingLabel = "Running AI governance scan…";
@@ -437,6 +544,10 @@ function normalizeBenefitDraft(benefit) {
     : defaultAssets;
   return {
     ...benefit,
+    title: cleanFieldValue(benefit.title),
+    type: cleanFieldValue(benefit.type),
+    discountValue: cleanFieldValue(benefit.discountValue),
+    timezone: cleanFieldValue(benefit.timezone),
     startDate: isValidDisplayDate(benefit.startDate) ? benefit.startDate : "",
     startTime: isValidDisplayTime(benefit.startTime) ? benefit.startTime : "",
     endDate: isValidDisplayDate(benefit.endDate) ? benefit.endDate : "",
@@ -676,6 +787,11 @@ function appShell(content, activePath) {
         ${icon(item.icon)} <span>${item.label}</span>
       </div>`;
     }
+    if (item.path === S.networkAI) {
+      return `<button class="nav-item ${active}" data-action="open-ai-analysis-list">
+        ${icon(item.icon)} <span>${item.label}</span>
+      </button>`;
+    }
     return `<a class="nav-item ${active}" href="#${item.path}">
       ${icon(item.icon)} <span>${item.label}</span>
     </a>`;
@@ -691,8 +807,9 @@ function appShell(content, activePath) {
         <div class="sidebar-user" data-nav="${S.index}">
           <div class="user-avatar">${initials}</div>
           <div class="user-info">
-            <div class="user-name">Azunyan U. Wu</div>
-            <div class="user-role">Basic Member</div>
+            <div class="user-name">Nina Watts</div>
+            <div class="user-role">Merchant Admin · Zappos</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -995,7 +1112,7 @@ function renderRegister() {
     </div>
     <div class="auth-center">
       <div class="auth-card">
-        <div>
+        <div class="auth-card-header">
           <div class="auth-card-title">Create an account</div>
           <div class="auth-card-sub">Already have an account? <a href="#${S.merchantBenefits}">Log in</a></div>
         </div>
@@ -1067,7 +1184,6 @@ function renderOnboard() {
           <p style="color:var(--brand);font-weight:600;margin:0">Add a corporate logo to your account...</p>
           <p>Supported Format: SVG, JPG, PNG (10mb each)</p>
           <div class="upload-btns">
-            <button class="upload-btn">Download ${icon("download-simple")}</button>
             <button class="upload-btn filled">Browse File ${icon("upload-simple")}</button>
           </div>
           <p>.jpg .png only (800x800 px preferable)</p>
@@ -1123,9 +1239,11 @@ function renderOnboard() {
 function renderBenefits() {
   const sel = state.selectedBenefitId;
   const selectedBenefit = state.benefits.find(b => b.id === sel);
+  const canRequestReview = selectedBenefit && (!selectedBenefit.reviewRequested || selectedBenefit.reviewDirty);
   const statusFilters = [
     { key: "all", label: "All" },
     { key: "Pending", label: "Pending" },
+    { key: "Changes Requested", label: "Changes Requested" },
     { key: "Published", label: "Published" },
     { key: "Paused", label: "Paused" },
   ];
@@ -1152,20 +1270,17 @@ function renderBenefits() {
       <td>${badge(b.status)}</td>
       <td>
         <div class="table-actions">
-          <button class="btn-icon" title="${b.status==="Paused"?"Resume":"Pause"}">${icon(b.status==="Paused"?"play":"pause")}</button>
+          ${(b.status === "Published" || b.status === "Paused") ? `
+            <button class="btn-icon" title="${b.status==="Paused"?"Resume service":"Pause service"}" data-benefit-action="${b.status==="Paused"?"resume":"pause"}" data-benefit-id="${b.id}">
+              ${icon(b.status==="Paused"?"play":"pause")}
+            </button>` : ``}
           <button class="btn-icon" title="More options">${icon("dots-three")}</button>
         </div>
       </td>
     </tr>`;
   }).join("");
 
-  const benefitBanner = !state.workflow.submitted ? `
-    <div class="scenario-banner">
-      ${icon("lightbulb")}
-      <div>
-        <strong>Nina's next step:</strong> Select <em>Valentine's Day 2-for-1 Shoes</em> in the table below, then click <strong>Request review</strong> to send it to the Mastercard Governance team.
-      </div>
-    </div>` : state.workflow.orchestratorDecision === "changes" ? `
+  const benefitBanner = !state.workflow.submitted ? `` : state.workflow.orchestratorDecision === "changes" ? `
     <div class="scenario-banner warn">
       ${icon("warning")}
       <div>
@@ -1294,29 +1409,43 @@ function renderBenefits() {
             ${dayPills}
           </div>
         </div>
-        <div class="detail-stats">
-          <div class="stats-title">${icon("chart-bar")} Statistics</div>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-label">Impacted audience<br><span style="font-size:10px">Last update 22 November 2025</span></div>
-              <div class="stat-value">${d.audience}</div>
-              <div class="stat-sub">${d.audienceCount}</div>
+        ${d.status === "Published" ? `
+          <div class="detail-stats">
+            <div class="stats-title">${icon("chart-bar")} Statistics</div>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-label">Impacted audience<br><span style="font-size:10px">Last update 22 November 2025</span></div>
+                <div class="stat-value">${d.audience}</div>
+                <div class="stat-sub">${d.audienceCount}</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Total assigned<br><span style="font-size:10px">Coupons assigned to members</span></div>
+                <div class="stat-value">${fmtNum(d.assigned)}</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-label">Total used<br><span style="font-size:10px">Coupons used by members</span></div>
+                <div class="stat-value">${fmtNum(d.used)}</div>
+              </div>
             </div>
-            <div class="stat-item">
-              <div class="stat-label">Total assigned<br><span style="font-size:10px">Coupons assigned to members</span></div>
-              <div class="stat-value">${fmtNum(d.assigned)}</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-label">Total used<br><span style="font-size:10px">Coupons used by members</span></div>
-              <div class="stat-value">${fmtNum(d.used)}</div>
-            </div>
-          </div>
-        </div>
+          </div>` : ``}
       </div>
       <div class="detail-footer">
-        <button class="btn btn-primary" style="width:100%;justify-content:center;height:44px" data-action="request-review">
-          ${icon("paper-plane-tilt")} Request review
-        </button>
+        ${d.status === "Published" ? `
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;height:44px" data-benefit-action="pause" data-benefit-id="${d.id}">
+            ${icon("pause")} Turn off service
+          </button>` : d.status === "Paused" ? `
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;height:44px" data-benefit-action="resume" data-benefit-id="${d.id}">
+            ${icon("play")} Resume service
+          </button>` : d.status === "Changes Requested" && !canRequestReview ? `
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;height:44px;opacity:.7;cursor:default" disabled>
+            ${icon("pencil-simple")} Update benefit to resubmit
+          </button>` : canRequestReview ? `
+          <button class="btn btn-primary" style="width:100%;justify-content:center;height:44px" data-action="request-review">
+            ${icon("paper-plane-tilt")} Request review
+          </button>` : `
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;height:44px;opacity:.7;cursor:default" disabled>
+            ${icon("check-circle")} Review requested
+          </button>`}
       </div>
     </div>` : "";
 
@@ -1343,6 +1472,11 @@ function renderBenefits() {
 /* ─── WIZARD ─────────────────────────────────────────────────────────────── */
 function renderWizard() {
   const b = state.benefit;
+  const currentBenefit = state.editingBenefitId
+    ? state.benefits.find(item => item.id === state.editingBenefitId)
+    : null;
+  const currentStatus = currentBenefit?.status || "Draft";
+  const canRequestReview = !currentBenefit || !currentBenefit.reviewRequested || currentBenefit.reviewDirty;
   const tabs = [
     { key:"basic",    icon:"file-text",      title:"Basic",    sub:"Identity and value" },
     { key:"validity", icon:"calendar-blank", title:"Validity", sub:"Validity and timeframe" },
@@ -1369,7 +1503,13 @@ function renderWizard() {
     ? `<button class="btn btn-secondary" data-wizard-back>← Back</button>` : `<span></span>`;
   const footerRight = state.wizardTab !== "media"
     ? `<button class="btn btn-primary" data-wizard-next>Continue →</button>`
-    : `<button class="btn btn-primary" data-action="save-benefit">Save &amp; publish →</button>`;
+    : (currentStatus === "Published" || currentStatus === "Paused")
+      ? `<button class="btn btn-primary" data-action="save-draft">Save changes →</button>`
+      : (currentStatus === "Changes Requested" && !canRequestReview)
+        ? `<button class="btn btn-secondary" style="opacity:.7;cursor:default" disabled>${icon("pencil-simple")} Make changes to resubmit</button>`
+      : canRequestReview
+        ? `<button class="btn btn-primary" data-action="request-review">Request review →</button>`
+        : `<button class="btn btn-secondary" style="opacity:.7;cursor:default" disabled>${icon("check-circle")} Review requested</button>`;
 
   const innerContent = `
     <div class="wizard-topbar">
@@ -1377,11 +1517,10 @@ function renderWizard() {
         <div class="wizard-eyebrow">${icon("gift")} Benefit</div>
         <div class="wizard-title">${b.title || "New benefit"}</div>
         <div style="margin-top:4px">
-          <span class="badge badge-draft">Draft</span>
+          ${badge(currentStatus)}
         </div>
       </div>
       <div class="wizard-actions">
-        <button class="btn btn-secondary">Publish</button>
         <button class="btn btn-primary" data-action="save-draft">Save</button>
         <button class="btn-ai">${icon("sparkle")} AI assistant</button>
       </div>
@@ -1436,7 +1575,24 @@ function renderWizardBasic(b) {
       </div>
       <div class="form-field">
         <label>Description</label>
-        <input class="form-input" placeholder="Write a coupon description" value="${b.description}" data-bind="benefit.description" />
+        <div class="rte-editor">
+          <div class="rte-toolbar">
+            <select><option>16</option><option>12</option><option>14</option><option>18</option></select>
+            <button class="rte-btn" title="Font color">A</button>
+            <button class="rte-btn" title="Highlight">&#x25A1;</button>
+            <div class="rte-sep"></div>
+            <button class="rte-btn"><strong>B</strong></button>
+            <button class="rte-btn"><em>I</em></button>
+            <button class="rte-btn"><u>U</u></button>
+            <button class="rte-btn"><s>S</s></button>
+            <div class="rte-sep"></div>
+            <button class="rte-btn">≡</button>
+            <button class="rte-btn">≡#</button>
+            <button class="rte-btn">≡•</button>
+          </div>
+          <div class="rte-body ${b.description ? "" : "is-empty"}" contenteditable="true" data-bind-rich="benefit.description" data-placeholder="Enter your main text here...">${b.description}</div>
+        </div>
+        <div class="rte-count">300/300</div>
       </div>
     </div>
     <div class="form-section">
@@ -1526,6 +1682,7 @@ function renderWizardValidity(b) {
       <div class="form-field">
         <label>Time zone</label>
         <select class="form-input" data-bind="benefit.timezone">
+          <option value="" ${!b.timezone ? "selected" : ""}>Select time zone</option>
           <option value="Buenos Aires, Argentina (GMT -3:00)" ${b.timezone==="Buenos Aires, Argentina (GMT -3:00)"?"selected":""}>Buenos Aires, Argentina (GMT -3:00)</option>
           <option value="Mexico City, Mexico (GMT -6:00)" ${b.timezone==="Mexico City, Mexico (GMT -6:00)"?"selected":""}>Mexico City, Mexico (GMT -6:00)</option>
           <option value="New York, USA (GMT -5:00)" ${b.timezone==="New York, USA (GMT -5:00)"?"selected":""}>New York, USA (GMT -5:00)</option>
@@ -1608,32 +1765,7 @@ function renderWizardMedia(b) {
   return `
     <div class="form-section">
       <div class="form-section-title">Media</div>
-      <div class="form-section-sub">Visual and search elements associated with the coupon.</div>
-      <div class="form-field">
-        <label>Title</label>
-        <input class="form-input" placeholder="Chasback: $40" value="${b.mediaTitle}" data-bind="benefit.mediaTitle" />
-      </div>
-    </div>
-    <div class="form-section">
-      <div class="form-section-title">Description</div>
-      <div class="rte-editor">
-        <div class="rte-toolbar">
-          <select><option>16</option><option>12</option><option>14</option><option>18</option></select>
-          <button class="rte-btn" title="Font color">A</button>
-          <button class="rte-btn" title="Highlight">&#x25A1;</button>
-          <div class="rte-sep"></div>
-          <button class="rte-btn"><strong>B</strong></button>
-          <button class="rte-btn"><em>I</em></button>
-          <button class="rte-btn"><u>U</u></button>
-          <button class="rte-btn"><s>S</s></button>
-          <div class="rte-sep"></div>
-          <button class="rte-btn">≡</button>
-          <button class="rte-btn">≡#</button>
-          <button class="rte-btn">≡•</button>
-        </div>
-        <div class="rte-body" contenteditable="true">${b.mediaDescription || "Enter your main text here..."}</div>
-      </div>
-      <div class="rte-count">300/300</div>
+      <div class="form-section-sub">Upload and manage the visual assets associated with the coupon.</div>
     </div>
     <div class="form-section">
       <div class="form-section-title">Images</div>
@@ -1668,7 +1800,7 @@ function renderWizardMedia(b) {
 }
 
 function renderWizardPreview(b) {
-  const title = b.mediaTitle || b.title || "New benefit";
+  const title = b.title || "New benefit";
   const sub = b.description || "$40 cash back reward on purchases + $400";
   const discountAmount = b.discountValue ? `${b.discountValue}% off` : "Not set";
   const fundingLabels = {
@@ -1737,25 +1869,18 @@ function renderWizardPreview(b) {
 /* ─── DASHBOARD ──────────────────────────────────────────────────────────── */
 function renderDashboard() {
   const kpis = [
-    { label:"Total revenue",     value:"$20,320", meta:"Redeemed value",  delta:"+12.4% vs last month", icon:"coins",       up:true,  spark:[58,64,61,73,70,78,82] },
-    { label:"Total orders",      value:"10,320",  meta:"Redemption events",delta:"+8.1% vs last month",  icon:"receipt",     up:true,  spark:[42,48,51,55,52,61,66] },
-    { label:"New customers",     value:"4,305",   meta:"First-time users",delta:"+6.7% this month",      icon:"users",       up:true,  spark:[28,34,39,37,45,49,54] },
-    { label:"Conversion rate",   value:"3.9%",    meta:"Benefit to redeem",delta:"-0.2 pts vs target",   icon:"chart-line",  up:false, spark:[60,58,57,56,54,53,52] },
+    { label:"Active deals",      value:"8",       delta:"+1 this month",      icon:"gift",    up:true  },
+    { label:"Total redemptions", value:"12,400",  delta:"+18% vs last month",  icon:"receipt", up:true  },
+    { label:"Members reached",   value:"14,320",  delta:"58% of target base",  icon:"users",   up:true  },
+    { label:"Budget consumed",   value:"$20,320", delta:"41% of $50K budget",  icon:"coins",   up:false },
   ];
 
   const kpiHtml = kpis.map((k, index) => `
     <div class="kpi-card dashboard-animate" style="--enter-delay:${index * 60}ms">
+      <div class="kpi-icon-wrap">${icon(k.icon)}</div>
       <div class="kpi-body">
         <div class="kpi-label">${k.label}</div>
-        <div class="kpi-main-row">
-          <div>
-            <div class="kpi-value">${k.value}</div>
-            <div class="kpi-meta">${k.meta}</div>
-          </div>
-          <div class="kpi-spark">
-            ${k.spark.map(v => `<span style="height:${v}%"></span>`).join("")}
-          </div>
-        </div>
+        <div class="kpi-value">${k.value}</div>
         <div class="kpi-delta ${k.up?"up":"down"}">${icon(k.up?"trend-up":"trend-down")} ${k.delta}</div>
       </div>
     </div>`).join("");
@@ -1781,31 +1906,41 @@ function renderDashboard() {
     </div>`).join("");
 
   const trendData = [
-    { month:"Jan", newUsers:8, existing:14 },
-    { month:"Feb", newUsers:10, existing:18 },
-    { month:"Mar", newUsers:9, existing:16 },
-    { month:"Apr", newUsers:12, existing:22 },
-    { month:"May", newUsers:11, existing:17 },
-    { month:"Jun", newUsers:15, existing:23, active:true },
-    { month:"Jul", newUsers:12, existing:19 },
-    { month:"Aug", newUsers:10, existing:16 },
-    { month:"Sep", newUsers:14, existing:20 },
-    { month:"Oct", newUsers:16, existing:24 },
-    { month:"Nov", newUsers:13, existing:17 },
-    { month:"Dec", newUsers:11, existing:15 },
+    { month:"Jan", cardLinked:4.2, codeBased:3.6 },
+    { month:"Feb", cardLinked:4.8, codeBased:4.1 },
+    { month:"Mar", cardLinked:5.1, codeBased:4.4 },
+    { month:"Apr", cardLinked:5.7, codeBased:4.9 },
+    { month:"May", cardLinked:6.1, codeBased:5.2 },
+    { month:"Jun", cardLinked:6.8, codeBased:5.6, active:true },
+    { month:"Jul", cardLinked:6.4, codeBased:5.1 },
+    { month:"Aug", cardLinked:7.2, codeBased:5.8 },
+    { month:"Sep", cardLinked:7.9, codeBased:6.1 },
+    { month:"Oct", cardLinked:8.4, codeBased:6.7 },
+    { month:"Nov", cardLinked:8.9, codeBased:7.1 },
+    { month:"Dec", cardLinked:9.4, codeBased:7.6 },
   ];
-  const trendMax = Math.max(...trendData.map(d => d.newUsers + d.existing));
+  const activeTrendMonth = trendData.find(d => d.active) || trendData[trendData.length - 1];
+  const activeTrendTotal = activeTrendMonth.cardLinked + activeTrendMonth.codeBased;
+  const trendMin = Math.min(...trendData.map(d => d.cardLinked + d.codeBased));
+  const trendMax = Math.max(...trendData.map(d => d.cardLinked + d.codeBased));
+  const trendRange = Math.max(trendMax - trendMin, 1);
   const trendBarsHtml = trendData.map((d, index) => `
+    ${(() => {
+      const total = d.cardLinked + d.codeBased;
+      const stackHeight = 28 + Math.round(((total - trendMin) / trendRange) * 150);
+      return `
     <div class="trend-col ${d.active ? "active" : ""}" style="--enter-delay:${index * 50}ms">
       <div class="trend-grid-stack">
         ${Array.from({ length: 8 }).map(() => `<span class="trend-grid-cell"></span>`).join("")}
       </div>
-      <div class="trend-stack">
-        <span class="trend-bar trend-bar-new" style="height:${Math.round(d.newUsers / trendMax * 100)}%"></span>
-        <span class="trend-bar trend-bar-existing" style="height:${Math.round(d.existing / trendMax * 100)}%"></span>
+      <div class="trend-total">${(d.cardLinked + d.codeBased).toFixed(1)}K</div>
+      <div class="trend-stack" style="height:${stackHeight}px">
+        <span class="trend-bar trend-bar-new trend-bar-single" style="height:100%"></span>
       </div>
       <div class="trend-month">${d.month}</div>
-    </div>`).join("");
+    </div>`;
+    })()}
+  `).join("");
 
   const redemptionData = [
     { month:"Apr", val:6200 },
@@ -1833,12 +1968,6 @@ function renderDashboard() {
       </div>
     </div>`).join("");
 
-  const breakdownData = [68, 54, 32, 73, 49, 41, 57, 33, 69, 48, 61, 52];
-  const breakdownBarsHtml = breakdownData.map((v, index) => `
-    <div class="breakdown-col" style="--enter-delay:${index * 45}ms">
-      <span style="height:${v}%"></span>
-    </div>`).join("");
-
   const topBenefits = [
     { name:"Valentine's 2-for-1 Shoes",  redemptions:4302, budget:"$40K", pct:86, model:"Merchant" },
     { name:"5% Cashback – Cashi",         redemptions:3855, budget:"$25K", pct:92, model:"Co-funded" },
@@ -1862,9 +1991,9 @@ function renderDashboard() {
     </tr>`).join("");
 
   const issuers = [
-    { name:"BBVA",         country:"🇦🇷", benefits:4, budget:"$22K", pct:74 },
-    { name:"BBVA Mexico",  country:"🇲🇽", benefits:3, budget:"$18K", pct:61 },
-    { name:"Chase USA",    country:"🇺🇸", benefits:1, budget:"$10K", pct:31 },
+    { name:"BBVA",         country:"🇺🇸", benefits:4, budget:"$22K", pct:74 },
+    { name:"Chase",        country:"🇺🇸", benefits:3, budget:"$18K", pct:61 },
+    { name:"Citi",         country:"🇺🇸", benefits:1, budget:"$10K", pct:31 },
   ];
   const issuerDistHtml = issuers.map(i => `
     <div class="issuer-dist-row">
@@ -1880,7 +2009,7 @@ function renderDashboard() {
     { icon:"check-circle", color:"var(--success)", text:'<strong>BBVA</strong> activated "Valentine\'s 2-for-1 Shoes"',    time:"2h ago" },
     { icon:"clock",        color:"var(--warning)", text:'<strong>Zappos</strong> submitted "Spring Sale 30% Off" for review',    time:"5h ago" },
     { icon:"x-circle",     color:"var(--danger)",  text:'<strong>Mastercard</strong> requested changes on "Back to School"',     time:"1d ago" },
-    { icon:"gift",         color:"var(--brand)",   text:'<strong>BBVA Mexico</strong> activated "5% Cashback – Cashi"',          time:"2d ago" },
+    { icon:"gift",         color:"var(--brand)",   text:'<strong>Chase</strong> activated "5% Cashback – Apple Pay"',             time:"2d ago" },
     { icon:"pause-circle", color:"var(--muted)",   text:'<strong>Zappos</strong> paused "30% off cleaning products"',            time:"3d ago" },
   ];
   const activityHtml = activity.map(a => `
@@ -1922,115 +2051,54 @@ function renderDashboard() {
 
       <div class="kpi-grid">${kpiHtml}</div>
 
-      <div class="dashboard-main-grid">
-        <div class="dash-card dash-card-lg dashboard-animate" style="--enter-delay:120ms">
+      <div class="issuer-top-grid">
+        <div class="dash-card dash-card-lg issuer-monthly-card dashboard-animate" style="--enter-delay:120ms">
           <div class="dash-card-header">
             <div>
-              <div class="dash-card-title">${icon("chart-bar")} Sales trend</div>
-              <div class="dash-card-sub">Total revenue <strong class="dash-inline-total">$20,320</strong></div>
-            </div>
-            <div class="chart-legend">
-              <span><i class="legend-dot legend-dot-brand"></i> New user</span>
-              <span><i class="legend-dot legend-dot-dark"></i> Existing user</span>
-              <div class="chart-tabs">
-                <button class="chart-tab">Weekly</button>
-                <button class="chart-tab active">Monthly</button>
-                <button class="chart-tab">Yearly</button>
-              </div>
+              <div class="dash-card-title">${icon("chart-bar")} Monthly redemptions</div>
+              <div class="dash-card-sub">Total redemptions <strong class="dash-inline-total">${Math.round(activeTrendTotal * 1000).toLocaleString()}</strong></div>
             </div>
           </div>
           <div class="trend-chart-wrap">
             <div class="trend-axis">
-              <span>60K</span>
-              <span>45K</span>
-              <span>30K</span>
-              <span>15K</span>
+              <span>18K</span>
+              <span>14K</span>
+              <span>10K</span>
+              <span>6K</span>
               <span>0K</span>
             </div>
             <div class="trend-chart">
               <div class="trend-chart-grid"></div>
               <div class="trend-focus-line"></div>
               <div class="trend-tooltip">
-                <div class="trend-tooltip-month">Jun 2025</div>
-                <div class="trend-tooltip-row"><span>New User</span><strong>38K</strong></div>
-                <div class="trend-tooltip-row"><span>Existing User</span><strong>18K</strong></div>
+                <div class="trend-tooltip-month">${activeTrendMonth.month} 2026</div>
+                <div class="trend-tooltip-row"><span>Total</span><strong>${activeTrendTotal.toFixed(1)}K</strong></div>
               </div>
               <div class="trend-bars">${trendBarsHtml}</div>
             </div>
           </div>
         </div>
-        <div class="dash-card dash-breakdown-card dashboard-animate" style="--enter-delay:180ms">
-          <div class="dash-card-header">
-            <div>
-              <div class="dash-card-title">${icon("chart-pie-slice")} Revenue breakdown</div>
-              <div class="dash-card-sub">Revenue by category</div>
+        <div class="dashboard-side-stack dashboard-main-side-stack">
+          <div class="dash-card dash-breakdown-card dashboard-animate" style="--enter-delay:180ms">
+            <div class="dash-card-header">
+              <div>
+                <div class="dash-card-title">${icon("chart-pie-slice")} Budget tracker</div>
+                <div class="dash-card-sub">$${budgetUsed.toLocaleString()} used of $${budgetTotal.toLocaleString()}</div>
+              </div>
+              <div class="dash-card-sub">Jan 1 - Aug 30</div>
             </div>
-            <div class="dash-card-sub">Jan 1 - Aug 30</div>
+            <div class="breakdown-total">$20,320</div>
+            <div class="breakdown-meta">
+              <span class="breakdown-pct">${budgetPct}% of budget used</span>
+            </div>
+            <div class="breakdown-insight">${icon("sparkle")} Get AI insight for better analysis</div>
           </div>
-          <div class="breakdown-total">$20,320</div>
-          <div class="breakdown-insight">${icon("sparkle")} Get AI insight for better analysis</div>
-          <div class="breakdown-chart">${breakdownBarsHtml}</div>
-          <div class="breakdown-foot">
-            <span>1 Jan</span>
-            <span>30 Jan 2026</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="dashboard-secondary-grid">
-        <div class="dash-card dashboard-animate dashboard-monthly-card" style="--enter-delay:240ms">
-          <div class="dash-card-header">
-            <div class="dash-card-title">${icon("chart-bar")} Monthly redemptions</div>
-            <div class="dash-card-sub">Oct 2025 - Mar 2026</div>
-          </div>
-          <div class="bar-chart">${redemptionBarsHtml}</div>
-        </div>
-        <div class="dashboard-side-stack dashboard-secondary-stack">
-          <div class="dash-card dashboard-animate" style="--enter-delay:300ms">
+          <div class="dash-card dashboard-animate dashboard-pipeline-card" style="--enter-delay:240ms">
             <div class="dash-card-header">
               <div class="dash-card-title">${icon("funnel")} Pipeline status</div>
               <div class="dash-card-sub">${total} total benefits</div>
             </div>
             <div class="pipeline-track">${pipelineHtml}</div>
-          </div>
-          <div class="dash-card dashboard-animate" style="--enter-delay:360ms">
-            <div class="dash-card-header">
-              <div class="dash-card-title">${icon("coins")} Budget tracker</div>
-              <div class="dash-card-sub">FY 2026</div>
-            </div>
-            <div class="budget-panel">
-              <div class="budget-track">
-                <div class="budget-numbers">
-                  <span class="budget-used">${budgetDisplay.format(budgetUsed)}</span>
-                  <span class="budget-total">of ${budgetDisplay.format(budgetTotal)}</span>
-                </div>
-                <div class="budget-bar-row">
-                  <div class="budget-bar-wrap">
-                    <div class="budget-bar" style="width:${budgetPct}%"></div>
-                  </div>
-                  <div class="budget-pct">${budgetPct}%</div>
-                </div>
-                <div class="budget-metrics">
-                  <div class="budget-metric">
-                    <span>Remaining</span>
-                    <strong>${budgetDisplay.format(budgetTotal - budgetUsed)}</strong>
-                  </div>
-                  <div class="budget-metric">
-                    <span>Avg / month</span>
-                    <strong>${budgetDisplay.format(Math.round(budgetUsed / 6))}</strong>
-                  </div>
-                  <div class="budget-metric">
-                    <span>Highest load</span>
-                    <strong>Merchant</strong>
-                  </div>
-                </div>
-                <div class="budget-breakdown">
-                  <div class="budget-item merchant"><span>Merchant-funded</span><strong>12.000</strong></div>
-                  <div class="budget-item cofunded"><span>Co-funded</span><strong>5.000</strong></div>
-                  <div class="budget-item issuer"><span>Issuer-funded</span><strong>3.000</strong></div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -2074,46 +2142,46 @@ function renderDashboard() {
 /* ─── PARTNERSHIPS ───────────────────────────────────────────────────────── */
 const DEMO_ISSUERS = [
   {
-    id:"i1", name:"BBVA", country:"Argentina", flag:"🇦🇷",
+    id:"i1", name:"BBVA", country:"United States", flag:"🇺🇸",
     initials:"BB", color:"#004B9B",
     status:"Active", joinDate:"Jan 2024",
     activeBenefits:4, totalRedemptions:8302, budget:"$22,000",
     contact:"loyalty@bbva.com",
     benefits:[
-      { title:"Valentine's 2-for-1 Shoes", model:"Merchant", status:"Published", redemptions:4302 },
-      { title:"5% Cashback – Cashi",        model:"Co-funded", status:"Published", redemptions:2100 },
-      { title:"20% Off pantry essentials",  model:"Issuer",   status:"Published", redemptions:940  },
-      { title:"$300 Bonus smartphones",     model:"Co-funded", status:"Pending",   redemptions:0    },
+      { title:"Valentine's 2-for-1 Shoes",    model:"Merchant",  status:"Published", redemptions:4302 },
+      { title:"5% Cashback – Apple Pay",       model:"Co-funded", status:"Published", redemptions:2100 },
+      { title:"20% Off pantry essentials",     model:"Issuer",    status:"Published", redemptions:940  },
+      { title:"$300 Bonus smartphones",        model:"Co-funded", status:"Pending",   redemptions:0    },
     ],
   },
   {
-    id:"i2", name:"BBVA Mexico", country:"Mexico", flag:"🇲🇽",
-    initials:"BB", color:"#0D47A1",
+    id:"i2", name:"Chase", country:"United States", flag:"🇺🇸",
+    initials:"CH", color:"#0D47A1",
     status:"Active", joinDate:"Mar 2024",
     activeBenefits:3, totalRedemptions:5200, budget:"$18,000",
-    contact:"loyalty@bbva.mx",
+    contact:"loyalty@chase.com",
     benefits:[
-      { title:"5% Cashback – Cashi",        model:"Co-funded", status:"Published", redemptions:3100 },
-      { title:"15% Off school shoes",        model:"Merchant",  status:"Published", redemptions:1600 },
-      { title:"Valentine's 2-for-1 Shoes",  model:"Merchant",  status:"Pending",   redemptions:0    },
+      { title:"5% Cashback – Apple Pay",       model:"Co-funded", status:"Published", redemptions:3100 },
+      { title:"15% Off school shoes",          model:"Merchant",  status:"Published", redemptions:1600 },
+      { title:"Valentine's 2-for-1 Shoes",     model:"Merchant",  status:"Pending",   redemptions:0    },
     ],
   },
   {
-    id:"i3", name:"Chase USA", country:"United States", flag:"🇺🇸",
-    initials:"CH", color:"#117A65",
+    id:"i3", name:"Citi", country:"United States", flag:"🇺🇸",
+    initials:"CI", color:"#117A65",
     status:"Negotiating", joinDate:"Nov 2024",
     activeBenefits:1, totalRedemptions:800, budget:"$10,000",
-    contact:"benefits@chase.com",
+    contact:"benefits@citi.com",
     benefits:[
       { title:"20% Off pantry essentials", model:"Issuer", status:"Published", redemptions:800 },
     ],
   },
   {
-    id:"i4", name:"Santander BR", country:"Brazil", flag:"🇧🇷",
-    initials:"SB", color:"#922B21",
+    id:"i4", name:"Capital One", country:"United States", flag:"🇺🇸",
+    initials:"CO", color:"#922B21",
     status:"Invited", joinDate:"—",
     activeBenefits:0, totalRedemptions:0, budget:"—",
-    contact:"fidelidade@santander.com.br",
+    contact:"partnerships@capitalone.com",
     benefits:[],
   },
 ];
@@ -2369,7 +2437,7 @@ const DEMO_QUEUE = [
     status:"Changes Requested",
     ruleResults:[
       { ruleId:"r1", verdict:"pass" },
-      { ruleId:"r2", verdict:"fail", note:"Title contains competitor brand reference." },
+      { ruleId:"r2", verdict:"fail", note:"Description uses wording that needs manual compliance review." },
       { ruleId:"r3", verdict:"pass" },
       { ruleId:"r4", verdict:"pass" },
       { ruleId:"r5", verdict:"warn", note:"Campaign duration is only 5 days." },
@@ -2414,7 +2482,7 @@ function buildLiveZapposDeal() {
     startDate:        b.startDate                        || base.startDate,
     endDate:          b.withoutEnd ? "" : (b.endDate    || base.endDate),
     activeDays:       b.activeDays                       || base.activeDays,
-    mediaTitle:       (b.mediaTitle || "").trim()        || base.mediaTitle,
+    mediaTitle:       (b.title || "").trim()             || base.mediaTitle,
     mediaDescription: (b.description || "").trim()       || base.mediaDescription,
     ruleResults,
   };
@@ -2493,7 +2561,8 @@ function networkShell(content, activePath) {
           <div class="user-avatar" style="background:#1A5276">MP</div>
           <div class="user-info">
             <div class="user-name">Marcus Patel</div>
-            <div class="user-role">Network Admin</div>
+            <div class="user-role">Network Admin · Mastercard</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -2550,11 +2619,11 @@ function renderNetworkQueue() {
       <td>${d.merchant}</td>
       <td><span class="funding-pill ${d.funding}">${fundingLabel[d.funding]}</span></td>
       <td><div style="font-size:13px">${d.submittedDate}</div><div style="font-size:11px;color:var(--muted)">${d.submittedTime}</div></td>
-      <td>${slaTag(d)}</td>
-      <td>${badge(d.status)}</td>
-      <td>
+      <td class="queue-sla-cell">${slaTag(d)}</td>
+      <td class="queue-status-cell">${badge(d.status)}</td>
+      <td class="queue-actions-cell">
         <div class="table-actions">
-          <button class="btn btn-primary" style="height:30px;font-size:12px;padding:0 12px" data-nav-deal="${d.id}">Review</button>
+          <button class="btn btn-primary queue-review-btn" data-nav-deal="${d.id}">Review</button>
         </div>
       </td>
     </tr>`).join("");
@@ -2608,13 +2677,7 @@ function renderNetworkQueue() {
         <div>
           <strong>Decision recorded:</strong> You ${state.workflow.orchestratorDecision === "approved" ? "approved" : state.workflow.orchestratorDecision === "rejected" ? "rejected" : "requested changes on"} the Zappos deal. BBVA can now ${state.workflow.orchestratorDecision === "approved" ? "activate it for their members" : "see the outcome in their portal"}.
         </div>
-      </div>` : `
-      <div class="scenario-banner">
-        ${icon("lightbulb")}
-        <div>
-          <strong>Demo tip:</strong> Have the merchant submit the Zappos deal first, then return here to review it.
-        </div>
-      </div>`}
+      </div>` : ``}
 
       <div class="net-kpi-strip">${kpiHtml}</div>
 
@@ -2661,6 +2724,25 @@ function renderNetworkDetailContent(deal) {
   const verdictIcon = { pass:"check-circle", warn:"warning", fail:"x-circle" };
   const verdictColor = { pass:"var(--success)", warn:"var(--warning)", fail:"var(--danger)" };
   const verdictLabel = { pass:"Compliant", warn:"Review", fail:"Violation" };
+  const getRuleResult = (ruleId) => deal.ruleResults.find(r => r.ruleId === ruleId) || { ruleId, verdict:"pass" };
+  const formatVerdictTag = (result, fallbackNote = "") => {
+    const note = cleanFieldValue(result?.note || fallbackNote);
+    return `
+      <span class="verdict-tag ${result?.verdict || "pass"}">
+        ${icon(verdictIcon[result?.verdict || "pass"])}
+        <span class="verdict-tag-copy">
+          <span class="verdict-tag-title">${verdictLabel[result?.verdict || "pass"]}</span>
+          ${note ? `<span class="verdict-tag-note">${note}</span>` : ""}
+        </span>
+      </span>`;
+  };
+  const titleRule = getRuleResult("r1");
+  const descriptionRule = getRuleResult("r2");
+  const discountRule = getRuleResult("r3");
+  const fundingRule = getRuleResult("r8");
+  const dateRule = getRuleResult("r5");
+  const daysRule = getRuleResult("r6");
+  const imageRule = getRuleResult("r7");
 
   const decision = state.workflow.orchestratorDecision;
 
@@ -2778,7 +2860,7 @@ function renderNetworkDetailContent(deal) {
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:4px">
           <span style="color:var(--muted)">Risk assessment</span>
-          <a href="#${S.networkAI}" style="color:var(--brand);font-weight:600">Full AI report →</a>
+          <button class="btn-link" data-action="open-ai-analysis" data-deal-id="${deal.id}" style="color:var(--brand);font-weight:600">Full AI report →</button>
         </div>
       </div>
 
@@ -2829,22 +2911,27 @@ function renderNetworkDetailContent(deal) {
           <div class="review-field">
             <div class="review-field-label">Title</div>
             <div class="review-field-value">${deal.title}</div>
-            <div class="verdict-tag pass">${icon("check-circle")} Compliant</div>
+            ${formatVerdictTag(titleRule)}
           </div>
           <div class="review-field">
             <div class="review-field-label">Benefit type</div>
             <div class="review-field-value">${deal.type}</div>
-            <div class="verdict-tag pass">${icon("check-circle")} Compliant</div>
+            ${formatVerdictTag({ verdict:"pass" })}
           </div>
           <div class="review-field">
             <div class="review-field-label">Discount value</div>
             <div class="review-field-value">$${deal.discount} / ${deal.type === "Percentage" ? deal.discount + "%" : "fixed"}</div>
-            <div class="verdict-tag ${Number(deal.discount) > 50 ? "fail" : "pass"}">${icon(Number(deal.discount) > 50 ? "x-circle" : "check-circle")} ${Number(deal.discount) > 50 ? "Violation — exceeds 50%" : "Compliant"}</div>
+            ${formatVerdictTag(
+              discountRule,
+              deal.type === "Percentage" && Number(deal.discount) > 50
+                ? "Exceeds 50% without pre-approval."
+                : ""
+            )}
           </div>
           <div class="review-field">
             <div class="review-field-label">Description</div>
             <div class="review-field-value">${deal.mediaDescription}</div>
-            <div class="verdict-tag ${deal.ruleResults.find(r=>r.ruleId==="r2")?.verdict || "pass"}">${icon(verdictIcon[deal.ruleResults.find(r=>r.ruleId==="r2")?.verdict||"pass"])} ${verdictLabel[deal.ruleResults.find(r=>r.ruleId==="r2")?.verdict||"pass"]}${deal.ruleResults.find(r=>r.ruleId==="r2")?.note ? ` — ${deal.ruleResults.find(r=>r.ruleId==="r2").note}` : ""}</div>
+            ${formatVerdictTag(descriptionRule)}
           </div>
         </div>
 
@@ -2855,17 +2942,19 @@ function renderNetworkDetailContent(deal) {
           <div class="review-field">
             <div class="review-field-label">Funding model</div>
             <div class="review-field-value"><span class="funding-pill ${deal.funding}">${fundingLabel[deal.funding]}</span></div>
-            <div class="verdict-tag ${deal.ruleResults.find(r=>r.ruleId==="r8")?.verdict||"pass"}">${icon(verdictIcon[deal.ruleResults.find(r=>r.ruleId==="r8")?.verdict||"pass"])} ${verdictLabel[deal.ruleResults.find(r=>r.ruleId==="r8")?.verdict||"pass"]}${deal.ruleResults.find(r=>r.ruleId==="r8")?.note ? ` — ${deal.ruleResults.find(r=>r.ruleId==="r8").note}` : ""}</div>
+            ${formatVerdictTag(fundingRule)}
           </div>
           <div class="review-field">
             <div class="review-field-label">Total budget</div>
             <div class="review-field-value">$${Number(deal.budget).toLocaleString()}</div>
-            <div class="verdict-tag ${Number(deal.budget) >= 1000 ? "pass" : "fail"}">${icon(Number(deal.budget) >= 1000 ? "check-circle" : "x-circle")} ${Number(deal.budget) >= 1000 ? "Compliant" : "Violation — below $1,000 minimum"}</div>
+            ${formatVerdictTag(
+              Number(deal.budget) >= 1000 ? { verdict:"pass" } : { verdict:"fail", note:"Below $1,000 minimum." }
+            )}
           </div>
           <div class="review-field">
             <div class="review-field-label">Max per redemption</div>
             <div class="review-field-value">$${deal.perRedemption}</div>
-            <div class="verdict-tag pass">${icon("check-circle")} Compliant</div>
+            ${formatVerdictTag({ verdict:"pass" })}
           </div>
         </div>
 
@@ -2876,17 +2965,17 @@ function renderNetworkDetailContent(deal) {
           <div class="review-field">
             <div class="review-field-label">Timezone</div>
             <div class="review-field-value">${deal.timezone}</div>
-            <div class="verdict-tag pass">${icon("check-circle")} Compliant</div>
+            ${formatVerdictTag({ verdict:"pass" })}
           </div>
           <div class="review-field">
             <div class="review-field-label">Date range</div>
             <div class="review-field-value">${deal.startDate} → ${deal.endDate || "No end date"}</div>
-            <div class="verdict-tag ${deal.ruleResults.find(r=>r.ruleId==="r5")?.verdict||"pass"}">${icon(verdictIcon[deal.ruleResults.find(r=>r.ruleId==="r5")?.verdict||"pass"])} ${verdictLabel[deal.ruleResults.find(r=>r.ruleId==="r5")?.verdict||"pass"]}${deal.ruleResults.find(r=>r.ruleId==="r5")?.note ? ` — ${deal.ruleResults.find(r=>r.ruleId==="r5").note}` : ""}</div>
+            ${formatVerdictTag(dateRule)}
           </div>
           <div class="review-field">
             <div class="review-field-label">Active days</div>
-            <div class="review-field-value"><div class="day-pills" style="gap:3px">${activeDayPills}</div></div>
-            <div class="verdict-tag ${deal.ruleResults.find(r=>r.ruleId==="r6")?.verdict||"pass"}">${icon(verdictIcon[deal.ruleResults.find(r=>r.ruleId==="r6")?.verdict||"pass"])} ${verdictLabel[deal.ruleResults.find(r=>r.ruleId==="r6")?.verdict||"pass"]}</div>
+            <div class="review-field-value"><div class="day-pills review-day-pills">${activeDayPills}</div></div>
+            ${formatVerdictTag(daysRule)}
           </div>
         </div>
 
@@ -2897,12 +2986,12 @@ function renderNetworkDetailContent(deal) {
           <div class="review-field">
             <div class="review-field-label">Media title</div>
             <div class="review-field-value">${deal.mediaTitle}</div>
-            <div class="verdict-tag pass">${icon("check-circle")} Compliant</div>
+            ${formatVerdictTag({ verdict:"pass" })}
           </div>
           <div class="review-field">
             <div class="review-field-label">Images attached</div>
             <div class="review-field-value">${deal.ruleResults.find(r=>r.ruleId==="r7")?.verdict === "fail" ? "No images uploaded" : "1 image attached"}</div>
-            <div class="verdict-tag ${deal.ruleResults.find(r=>r.ruleId==="r7")?.verdict||"pass"}">${icon(verdictIcon[deal.ruleResults.find(r=>r.ruleId==="r7")?.verdict||"pass"])} ${verdictLabel[deal.ruleResults.find(r=>r.ruleId==="r7")?.verdict||"pass"]}${deal.ruleResults.find(r=>r.ruleId==="r7")?.note ? ` — ${deal.ruleResults.find(r=>r.ruleId==="r7").note}` : ""}</div>
+            ${formatVerdictTag(imageRule)}
           </div>
         </div>
 
@@ -2930,7 +3019,93 @@ function renderNetworkDetail() {
   return networkShell(renderNetworkDetailContent(deal), S.networkQueue);
 }
 
+function getAiAnalyzedDeals() {
+  return getLiveQueue().map(deal => {
+    const passCount = deal.ruleResults.filter(r => r.verdict === "pass").length;
+    const warnCount = deal.ruleResults.filter(r => r.verdict === "warn").length;
+    const failCount = deal.ruleResults.filter(r => r.verdict === "fail").length;
+    const confidence = Math.round(passCount / deal.ruleResults.length * 100);
+    const riskLevel = failCount > 0 ? "High" : warnCount > 0 ? "Medium" : "Low";
+    return { ...deal, passCount, warnCount, failCount, confidence, riskLevel };
+  });
+}
+
+function renderNetworkAIList() {
+  const analyzedDeals = getAiAnalyzedDeals();
+  const rows = analyzedDeals.map(deal => `
+    <tr>
+      <td class="ai-analysis-benefit">
+        <div class="coupon-cell ai-analysis-benefit-cell">
+          <div class="coupon-thumb" style="background:${deal.merchantColor};color:#fff">
+            <span style="font-size:11px;font-weight:700">${deal.merchantInitials}</span>
+          </div>
+          <div class="ai-analysis-benefit-copy">
+            <div class="ai-analysis-benefit-title">${deal.title}</div>
+            <div class="ai-analysis-benefit-meta">${deal.merchant} · ${deal.submittedDate}</div>
+          </div>
+        </div>
+      </td>
+      <td class="ai-analysis-status">${badge(deal.status)}</td>
+      <td class="ai-analysis-risk">
+        <span class="ai-risk-chip" style="background:${deal.riskLevel==="Low"?"var(--success-soft)":deal.riskLevel==="Medium"?"var(--warning-soft)":"var(--danger-soft)"};color:${deal.riskLevel==="Low"?"var(--success)":deal.riskLevel==="Medium"?"var(--warning)":"var(--danger)"}">
+          ${deal.riskLevel} risk
+        </span>
+      </td>
+      <td class="ai-analysis-confidence">${deal.confidence}%</td>
+      <td class="ai-analysis-summary">${deal.passCount} passed · ${deal.warnCount} warnings · ${deal.failCount} violations</td>
+      <td class="ai-analysis-action">
+        <button class="btn btn-primary ai-analysis-open-btn" data-action="open-ai-analysis" data-deal-id="${deal.id}">
+          ${icon("robot")} Open analysis
+        </button>
+      </td>
+    </tr>`).join("");
+
+  const content = `
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-breadcrumb">${icon("robot")} AI Analysis</div>
+      </div>
+      <div class="topbar-right">
+        <span style="font-size:12px;color:var(--muted)">Select a benefit to open its contextual AI report</span>
+      </div>
+    </div>
+    <div class="page-content" style="gap:20px;display:flex;flex-direction:column">
+      <div class="page-header" style="margin-bottom:0">
+        <div class="page-header-left">
+          <div class="page-eyebrow">${icon("robot")} AI</div>
+          <div class="page-title">Analyzed Benefits</div>
+          <p class="page-summary">Choose a reviewed or reviewable benefit first, then inspect the AI analysis tied to that exact submission.</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        ${[
+          { label:"Analyzed", value: analyzedDeals.length, icon:"robot", color:"var(--brand)" },
+          { label:"Low risk", value: analyzedDeals.filter(d => d.riskLevel === "Low").length, icon:"check-circle", color:"var(--success)" },
+          { label:"Needs review", value: analyzedDeals.filter(d => d.riskLevel !== "Low").length, icon:"warning", color:"var(--warning)" },
+        ].map(card => `<div class="net-kpi">
+          <div class="net-kpi-icon" style="color:${card.color}">${icon(card.icon)}</div>
+          <div><div class="net-kpi-val">${card.value}</div><div class="net-kpi-lab">${card.label}</div></div>
+        </div>`).join("")}
+      </div>
+
+      <div class="table-wrap">
+        <table class="ai-analysis-table">
+          <thead><tr>
+            <th>Benefit</th><th>Status</th><th>Risk</th><th>Confidence</th><th>Rule summary</th><th>Action</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  return networkShell(content, S.networkAI);
+}
+
 function renderNetworkAI() {
+  if (state.network.aiView !== "detail" || !state.network.selectedDealId) {
+    return renderNetworkAIList();
+  }
   const deal = state.network.selectedDealId
     ? getQueueDeal(state.network.selectedDealId)
     : DEMO_QUEUE[0];
@@ -2966,6 +3141,8 @@ function renderNetworkAI() {
   const content = `
     <div class="topbar">
       <div class="topbar-left">
+        <button class="topbar-breadcrumb btn-link" data-action="back-to-ai-analysis-list" style="color:var(--muted)">${icon("caret-left")} Analyzed benefits</button>
+        <span style="color:var(--line-strong);margin:0 8px">/</span>
         <div class="topbar-breadcrumb">${icon("robot")} AI Analysis</div>
       </div>
       <div class="topbar-right">
@@ -3125,10 +3302,10 @@ function renderNetworkRules() {
 
 function renderNetworkLibrary() {
   const libraryDeals = [
-    { id:"l1", title:"Summer Getaway 15% Off Hotels",          merchant:"Marriott",  merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", approvedDate:"02/10/2026", issuer:"Chase USA",   status:"Approved", redemptions:2840 },
+    { id:"l1", title:"Summer Getaway 15% Off Hotels",          merchant:"Marriott",  merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", approvedDate:"02/10/2026", issuer:"Chase",      status:"Approved", redemptions:2840 },
     { id:"l2", title:"5% Cashback on Grocery — Q1",           merchant:"Kroger",    merchantColor:"#1B5E20", merchantInitials:"KR", funding:"issuer",   approvedDate:"01/22/2026", issuer:"BBVA",       status:"Approved", redemptions:6120 },
-    { id:"l3", title:"$50 Off First Smart TV Purchase",        merchant:"Samsung",   merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", approvedDate:"03/01/2026", issuer:"BBVA Mexico",status:"Approved", redemptions:1330 },
-    { id:"l4", title:"Free Delivery — 30 Days",               merchant:"DoorDash",  merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", approvedDate:"12/05/2025", issuer:"Chase USA",   status:"Approved", redemptions:9200 },
+    { id:"l3", title:"$50 Off First Smart TV Purchase",        merchant:"Samsung",   merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", approvedDate:"03/01/2026", issuer:"Citi",       status:"Approved", redemptions:1330 },
+    { id:"l4", title:"Free Delivery — 30 Days",               merchant:"DoorDash",  merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", approvedDate:"12/05/2025", issuer:"Chase",      status:"Approved", redemptions:9200 },
     { id:"l5", title:"Back-to-School Laptop Bonus (revised)", merchant:"BestBuy",   merchantColor:"#0D47A1", merchantInitials:"BB", funding:"issuer",   approvedDate:"—",          issuer:"Pending",     status:"Approved", redemptions:0    },
   ];
 
@@ -3346,6 +3523,7 @@ function issuerShell(content, activePath) {
           <div class="user-info">
             <div class="user-name">Avery Coleman</div>
             <div class="user-role">Offer Manager · BBVA</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -3491,12 +3669,6 @@ function renderIssuerLibrary() {
             <div>
               <strong>Deal is live!</strong> The Zappos Valentine's Day deal is active for BBVA members. Check the Lifecycle tab to manage it.
             </div>
-          </div>` : !state.workflow.orchestratorDecision ? `
-          <div class="scenario-banner">
-            ${icon("lightbulb")}
-            <div>
-              <strong>Demo tip:</strong> No deals have been approved yet. Have the Mastercard team review and approve the Zappos submission first.
-            </div>
           </div>` : ""}
 
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">${chips}</div>
@@ -3524,17 +3696,19 @@ function renderIssuerActivation(inline = false) {
   const fundingLabel = { merchant:"Merchant", cofunded:"Co-funded", issuer:"Issuer" };
 
   const steps = [
-    { label:"Configure",  icon:"sliders" },
-    { label:"Preview",    icon:"eye" },
-    { label:"Confirm",    icon:"check-circle" },
+    { label:"Configure",  sub:"Audience and channels", icon:"sliders" },
+    { label:"Preview",    sub:"Member-facing content", icon:"eye" },
+    { label:"Confirm",    sub:"Final activation check", icon:"check-circle" },
   ];
 
   const stepBar = steps.map((s, i) => `
-    <div class="act-step ${i===step?"active":i<step?"done":""}">
-      <div class="act-step-dot">${i < step ? icon("check") : String(i+1)}</div>
-      <div class="act-step-label">${s.label}</div>
-    </div>
-    ${i < steps.length-1 ? `<div class="act-step-line ${i<step?"done":""}"></div>` : ""}`
+    <div class="wizard-tab ${i===step?"active":""}" data-act-step="${i}">
+      ${icon(i < step ? "check-circle" : s.icon)}
+      <div class="wizard-tab-text">
+        <div class="wizard-tab-title">${s.label}</div>
+        <div class="wizard-tab-sub">${s.sub}</div>
+      </div>
+    </div>`
   ).join("");
 
   const channels = [
@@ -3705,9 +3879,11 @@ function renderIssuerActivation(inline = false) {
             <div style="font-size:17px;font-weight:800">${deal.title}</div>
           </div>
         </div>
-        <div class="act-stepbar">${stepBar}</div>
       </div>
-      <div class="act-body">${formContent}</div>
+      <div class="act-main">
+        <div class="wizard-tabs act-wizard-tabs">${stepBar}</div>
+        <div class="act-body">${formContent}</div>
+      </div>
       <div class="act-footer">${footerLeft}${footerRight}</div>
     </div>`;
 
@@ -3723,8 +3899,8 @@ function renderIssuerAnalytics() {
     { label:"Budget consumed",  value:"$31,450",delta:"63% of $50K issuer cap",icon:"coins",       up:false },
   ];
 
-  const kpiHtml = kpis.map(k => `
-    <div class="kpi-card">
+  const kpiHtml = kpis.map((k, index) => `
+    <div class="kpi-card dashboard-animate" style="--enter-delay:${index * 60}ms">
       <div class="kpi-icon-wrap">${icon(k.icon)}</div>
       <div class="kpi-body">
         <div class="kpi-label">${k.label}</div>
@@ -3734,15 +3910,34 @@ function renderIssuerAnalytics() {
     </div>`).join("");
 
   const monthlyBars = [
-    {m:"Oct",v:3200},{m:"Nov",v:4800},{m:"Dec",v:6100},
-    {m:"Jan",v:5400},{m:"Feb",v:7200},{m:"Mar",v:9890},
+    { month:"Oct", val:3200 },
+    { month:"Nov", val:4800 },
+    { month:"Dec", val:6100 },
+    { month:"Jan", val:5400 },
+    { month:"Feb", val:7200 },
+    { month:"Mar", val:9890, active:true },
   ];
-  const maxBar = Math.max(...monthlyBars.map(d=>d.v));
-  const barsHtml = monthlyBars.map(d => `
-    <div class="bar-col">
-      <div class="bar-fill" style="height:${Math.round(d.v/maxBar*100)}%"></div>
-      <div class="bar-label">${d.m}</div>
-    </div>`).join("");
+  const activeMonthlyBar = monthlyBars.find(d => d.active) || monthlyBars[monthlyBars.length - 1];
+  const activeMonthlyIndex = Math.max(monthlyBars.findIndex(d => d.active), 0);
+  const issuerChartColumns = monthlyBars.length;
+  const issuerFocusLeft = `${((activeMonthlyIndex + 0.5) / issuerChartColumns) * 100}%`;
+  const issuerTooltipLeft = `${Math.min(76, ((activeMonthlyIndex + 1.2) / issuerChartColumns) * 100)}%`;
+  const issuerChartCeiling = 10000;
+  const issuerChartUsableHeight = 220;
+  const monthlyTrendHtml = monthlyBars.map((d, index) => {
+    const stackHeight = Math.max(26, Math.round((d.val / issuerChartCeiling) * issuerChartUsableHeight));
+    return `
+    <div class="trend-col ${d.active ? "active" : ""}" style="--enter-delay:${index * 50}ms">
+      <div class="trend-grid-stack">
+        ${Array.from({ length: 8 }).map(() => `<span class="trend-grid-cell"></span>`).join("")}
+      </div>
+      <div class="trend-total">${(d.val / 1000).toFixed(1)}K</div>
+      <div class="trend-stack" style="height:${stackHeight}px">
+        <span class="trend-bar trend-bar-new trend-bar-single" style="height:100%"></span>
+      </div>
+      <div class="trend-month">${d.month}</div>
+    </div>`;
+  }).join("");
 
   const segments = [
     { label:"All members",         pct:42, redemptions:8358, color:"var(--brand)" },
@@ -3790,17 +3985,19 @@ function renderIssuerAnalytics() {
   ];
   const channelRows = channels.map(c => `
     <tr>
-      <td><div style="display:flex;align-items:center;gap:8px">${icon(c.icon)} ${c.name}</div></td>
-      <td style="text-align:right;font-weight:600">${c.redemptions.toLocaleString()}</td>
       <td>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:6px;border-radius:3px;background:var(--line)">
-            <div style="height:100%;width:${c.pct}%;border-radius:3px;background:var(--brand)"></div>
+        <div class="channel-cell-name">${icon(c.icon)} <span>${c.name}</span></div>
+      </td>
+      <td class="channel-cell-redemptions">${c.redemptions.toLocaleString()}</td>
+      <td>
+        <div class="channel-share-cell">
+          <div class="channel-share-bar">
+            <div class="channel-share-fill" style="width:${c.pct}%"></div>
           </div>
-          <span style="font-size:12px;color:var(--muted)">${c.pct}%</span>
+          <span class="channel-share-pct">${c.pct}%</span>
         </div>
       </td>
-      <td style="font-weight:600;color:var(--success)">${c.ctr}</td>
+      <td class="channel-cell-ctr">${c.ctr}</td>
     </tr>`).join("");
 
   const content = `
@@ -3808,53 +4005,106 @@ function renderIssuerAnalytics() {
       <div class="topbar-left">
         <div class="topbar-breadcrumb">${icon("chart-bar")} Analytics</div>
       </div>
-      <div class="topbar-right">
+      <div class="topbar-right dashboard-header-actions">
+        <div class="dashboard-filters">
+          <button class="dashboard-chip active">Monthly</button>
+          <button class="dashboard-chip">Quarterly</button>
+          <button class="dashboard-chip">2026</button>
+        </div>
         <button class="btn btn-secondary">${icon("download-simple")} Export</button>
       </div>
     </div>
-    <div class="page-content" style="display:flex;flex-direction:column;gap:20px">
-      <div class="page-header" style="margin-bottom:0">
+    <div class="page-content dashboard-page">
+      <div class="page-header dashboard-animate" style="margin-bottom:0">
         <div class="page-header-left">
           <div class="page-eyebrow">${icon("chart-bar")} Performance</div>
-          <div class="page-title">Analytics Overview</div>
+          <div class="page-title">Analytics overview</div>
+          <p class="page-summary">Track issuer activation performance, member reach, redemption momentum, and channel efficiency in one place.</p>
         </div>
       </div>
 
       <div class="kpi-grid">${kpiHtml}</div>
 
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px">
-        <div class="dash-card">
+      <div class="dashboard-main-grid">
+        <div class="dash-card dash-card-lg dashboard-animate" style="--enter-delay:120ms">
           <div class="dash-card-header">
-            <div class="dash-card-title">${icon("chart-bar")} Monthly redemptions</div>
+            <div>
+              <div class="dash-card-title">${icon("chart-bar")} Monthly redemptions</div>
+              <div class="dash-card-sub">Total redemptions <strong class="dash-inline-total">${activeMonthlyBar.val.toLocaleString()}</strong></div>
+            </div>
           </div>
-          <div class="bar-chart">${barsHtml}</div>
+          <div class="trend-chart-wrap">
+            <div class="trend-axis">
+              <span>10K</span>
+              <span>8K</span>
+              <span>6K</span>
+              <span>4K</span>
+              <span>0K</span>
+            </div>
+            <div class="trend-chart">
+              <div class="trend-chart-grid" style="background-size: calc(100% / ${issuerChartColumns}) calc(100% / 6)"></div>
+              <div class="trend-focus-line" style="left:${issuerFocusLeft}"></div>
+              <div class="trend-tooltip" style="left:${issuerTooltipLeft}">
+                <div class="trend-tooltip-month">${activeMonthlyBar.month} 2026</div>
+                <div class="trend-tooltip-row"><span>Total</span><strong>${(activeMonthlyBar.val / 1000).toFixed(1)}K</strong></div>
+              </div>
+              <div class="trend-bars" style="grid-template-columns: repeat(${issuerChartColumns}, minmax(0, 1fr));">${monthlyTrendHtml}</div>
+            </div>
+          </div>
         </div>
-        <div class="dash-card">
-          <div class="dash-card-header">
-            <div class="dash-card-title">${icon("funnel")} Segment breakdown</div>
+        <div class="dashboard-side-stack dashboard-main-side-stack">
+          <div class="dash-card dash-breakdown-card dashboard-animate" style="--enter-delay:180ms">
+            <div class="dash-card-header">
+              <div>
+                <div class="dash-card-title">${icon("chart-pie-slice")} Budget tracker</div>
+                <div class="dash-card-sub">$20,000 used of $50,000</div>
+              </div>
+              <div class="dash-card-sub">Jan 1 - Aug 30</div>
+            </div>
+            <div class="breakdown-total">$20,320</div>
+            <div class="breakdown-meta">
+              <span class="breakdown-pct">40% of budget used</span>
+            </div>
+            <div class="breakdown-insight">${icon("sparkle")} Get AI insight for better analysis</div>
           </div>
-          <div style="display:flex;flex-direction:column;gap:12px">${segHtml}</div>
+          <div class="dash-card issuer-segment-card dashboard-animate" style="--enter-delay:240ms">
+            <div class="dash-card-header">
+              <div>
+                <div class="dash-card-title">${icon("funnel")} Segment breakdown</div>
+                <div class="dash-card-sub">Audience mix driving redemptions</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">${segHtml}</div>
+          </div>
         </div>
       </div>
 
-      <div class="dash-card">
+      <div class="dash-card dashboard-animate" style="--enter-delay:300ms">
         <div class="dash-card-header">
-          <div class="dash-card-title">${icon("gift")} Deal performance</div>
+          <div>
+            <div class="dash-card-title">${icon("broadcast")} Channel performance</div>
+            <div class="dash-card-sub">Engagement efficiency by touchpoint</div>
+          </div>
         </div>
-        <table class="dash-table">
-          <thead><tr><th>Deal</th><th style="text-align:right">Redemptions</th><th>Funding</th><th>Budget used</th><th>Status</th></tr></thead>
-          <tbody>${topDeals}</tbody>
-        </table>
-      </div>
-
-      <div class="dash-card">
-        <div class="dash-card-header">
-          <div class="dash-card-title">${icon("broadcast")} Channel performance</div>
-        </div>
-        <table class="dash-table">
+        <table class="dash-table issuer-channel-table">
           <thead><tr><th>Channel</th><th style="text-align:right">Redemptions</th><th>Share</th><th>CTR</th></tr></thead>
           <tbody>${channelRows}</tbody>
         </table>
+      </div>
+
+      <div>
+        <div class="dash-card dashboard-animate" style="--enter-delay:360ms">
+          <div class="dash-card-header">
+            <div>
+              <div class="dash-card-title">${icon("gift")} Deal performance</div>
+              <div class="dash-card-sub">Top issuer offers by redemptions and budget usage</div>
+            </div>
+          </div>
+          <table class="dash-table">
+            <thead><tr><th>Deal</th><th style="text-align:right">Redemptions</th><th>Funding</th><th>Budget used</th><th>Status</th></tr></thead>
+            <tbody>${topDeals}</tbody>
+          </table>
+        </div>
       </div>
     </div>`;
 
@@ -4114,6 +4364,7 @@ function bindEvents() {
           name: file.name,
         };
         state.benefit.mediaAssets = nextAssets;
+        markCurrentBenefitDirtyForReview();
         save();
         renderPreservingWizardFormScroll();
       };
@@ -4133,6 +4384,7 @@ function bindEvents() {
         name: "",
       };
       state.benefit.mediaAssets = nextAssets;
+      markCurrentBenefitDirtyForReview();
       save();
       renderPreservingWizardFormScroll();
     });
@@ -4146,6 +4398,7 @@ function bindEvents() {
       const last = keys.pop();
       const target = keys.reduce((acc, k) => acc[k], state);
       target[last] = el.value;
+      markCurrentBenefitDirtyForReview();
       save();
       // live-update preview without full re-render
       updatePreview();
@@ -4156,6 +4409,7 @@ function bindEvents() {
   document.querySelectorAll("[data-benefit-type]").forEach(el => {
     el.addEventListener("click", () => {
       state.benefit.type = el.dataset.benefitType;
+      markCurrentBenefitDirtyForReview();
       save(); render();
     });
   });
@@ -4172,6 +4426,7 @@ function bindEvents() {
         state.benefit.endDate = "";
         state.benefit.endTime = "";
       }
+      markCurrentBenefitDirtyForReview();
       save();
       if (state.screen === S.merchantNew) {
         renderPreservingWizardFormScroll();
@@ -4236,10 +4491,26 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-benefit-action]").forEach(el => {
+    el.addEventListener("click", event => {
+      event.stopPropagation();
+      const benefit = state.benefits.find(b => b.id === el.dataset.benefitId);
+      if (!benefit) return;
+      if (el.dataset.benefitAction === "pause" && benefit.status === "Published") {
+        benefit.status = "Paused";
+      } else if (el.dataset.benefitAction === "resume" && benefit.status === "Paused") {
+        benefit.status = "Published";
+      }
+      save();
+      render();
+    });
+  });
+
   // funding model cards
   document.querySelectorAll("[data-funding-model]").forEach(el => {
     el.addEventListener("click", () => {
       state.funding.model = el.dataset.fundingModel;
+      markCurrentBenefitDirtyForReview();
       save();
       renderPreservingWizardFormScroll();
     });
@@ -4254,6 +4525,7 @@ function bindEvents() {
         labels.querySelector("span:first-child").textContent = `Merchant ${el.value}%`;
         labels.querySelector("span:last-child").textContent  = `Issuer ${100 - parseInt(el.value)}%`;
       }
+      markCurrentBenefitDirtyForReview();
       save();
       updatePreview();
     });
@@ -4263,9 +4535,29 @@ function bindEvents() {
   document.querySelectorAll("[data-bind-funding]").forEach(el => {
     el.addEventListener("input", () => {
       state.funding[el.dataset.bindFunding] = el.value;
+      markCurrentBenefitDirtyForReview();
       save();
       updatePreview();
     });
+  });
+
+  document.querySelectorAll(".rte-body").forEach(el => {
+    const bindPath = el.dataset.bindRich || "benefit.description";
+    const syncEditorState = () => {
+      const value = cleanFieldValue(el.textContent);
+      setByPath(state, bindPath, value);
+      el.classList.toggle("is-empty", !value);
+      markCurrentBenefitDirtyForReview();
+      save();
+    };
+    el.addEventListener("focus", () => {
+      if (el.classList.contains("is-empty")) el.textContent = "";
+    });
+    el.addEventListener("input", () => {
+      syncEditorState();
+      updatePreview();
+    });
+    el.addEventListener("blur", syncEditorState);
   });
 
   // select issuer (partnerships)
@@ -4378,6 +4670,12 @@ function bindEvents() {
       }
     });
   });
+  document.querySelectorAll("[data-act-step]").forEach(el => {
+    el.addEventListener("click", () => {
+      state.issuer.activationStep = parseInt(el.dataset.actStep, 10);
+      save(); render();
+    });
+  });
 
   // activation segment cards
   document.querySelectorAll("[data-act-segment]").forEach(el => {
@@ -4426,6 +4724,7 @@ function bindEvents() {
       const days = state.benefit.activeDays;
       const idx = days.indexOf(d);
       if (idx >= 0) days.splice(idx, 1); else days.push(d);
+      markCurrentBenefitDirtyForReview();
       save();
       renderPreservingWizardFormScroll();
     });
@@ -4488,14 +4787,9 @@ function handleAction(action, el) {
     case "new-benefit":
       state.editingBenefitId = null;
       state.wizardTab = "basic";
+      state.mediaEditor = null;
       state.benefit = defaultBenefitDraft();
-      state.funding = {
-        ...state.funding,
-        model: "merchant",
-        merchantPct: 70,
-        totalBudget: "50000",
-        perRedemption: "40",
-      };
+      state.funding = defaultFundingDraft();
       save();
       navigate(S.merchantNew);
       break;
@@ -4528,6 +4822,7 @@ function handleAction(action, el) {
             alt: document.getElementById("media-editor-alt")?.value || "",
           };
           state.benefit.mediaAssets = nextAssets;
+          markCurrentBenefitDirtyForReview();
         }
       }
       state.mediaEditor = null;
@@ -4546,6 +4841,19 @@ function handleAction(action, el) {
     case "back-to-queue":
       state.network.queueView = "list";
       save(); navigate(S.networkQueue);
+      break;
+    case "open-ai-analysis-list":
+      state.network.aiView = "list";
+      save(); navigate(S.networkAI);
+      break;
+    case "back-to-ai-analysis-list":
+      state.network.aiView = "list";
+      save(); navigate(S.networkAI);
+      break;
+    case "open-ai-analysis":
+      state.network.selectedDealId = el.dataset.dealId || state.network.selectedDealId;
+      state.network.aiView = "detail";
+      save(); navigate(S.networkAI);
       break;
     case "back-to-library":
       state.issuer.libraryView = "grid";
@@ -4589,7 +4897,11 @@ function handleAction(action, el) {
           } else {
             state.workflow.orchestratorDecision = "changes";
             const b = state.benefits.find(b => b.status === "Pending");
-            if (b) b.status = "Changes Requested";
+            if (b) {
+              b.status = "Changes Requested";
+              b.reviewRequested = true;
+              b.reviewDirty = false;
+            }
           }
           state.ui.processing = false;
           state.ui.processingType = null;
@@ -4629,8 +4941,14 @@ function handleAction(action, el) {
       break;
     case "request-review":
       state.workflow.submitted = true;
-      state.selectedBenefitId = saveWizardBenefitToList("Pending");
+      state.workflow.orchestratorDecision = null;
+      state.network.reviewNotes = "";
+      state.selectedBenefitId = saveWizardBenefitToList("Pending", { reviewRequested: true, reviewDirty: false });
       state.editingBenefitId = null;
+      state.wizardTab = "basic";
+      state.mediaEditor = null;
+      state.benefit = defaultBenefitDraft();
+      state.funding = defaultFundingDraft();
       state.ui.processing = true;
       state.ui.processingType = "submit-review";
       state.ui.processingLabel = "Submitting to Mastercard Governance…";
@@ -4651,8 +4969,18 @@ function handleAction(action, el) {
       break;
     case "save-benefit":
     case "save-draft":
-      state.selectedBenefitId = saveWizardBenefitToList(action === "save-benefit" ? "Published" : "Draft");
+      state.selectedBenefitId = saveWizardBenefitToList(
+        action === "save-benefit" ? "Published" : "Draft",
+        {
+          reviewRequested: Boolean(state.editingBenefitId && state.benefits.find(b => b.id === state.editingBenefitId)?.reviewRequested),
+          reviewDirty: Boolean(state.editingBenefitId && state.benefits.find(b => b.id === state.editingBenefitId)?.reviewDirty),
+        }
+      );
       state.editingBenefitId = null;
+      state.wizardTab = "basic";
+      state.mediaEditor = null;
+      state.benefit = defaultBenefitDraft();
+      state.funding = defaultFundingDraft();
       save();
       navigate(S.merchantBenefits);
       break;
@@ -4674,7 +5002,7 @@ function updatePreview() {
     cofunded: "Co-funded",
     issuer: "Issuer-funded",
   };
-  if (previewTitle) previewTitle.textContent = state.benefit.mediaTitle || state.benefit.title || "New benefit";
+  if (previewTitle) previewTitle.textContent = state.benefit.title || "New benefit";
   if (previewSub)   previewSub.textContent   = state.benefit.description || "$40 cash back reward on purchases + $400";
   if (previewDiscount) previewDiscount.textContent = state.benefit.discountValue ? `${state.benefit.discountValue}% off` : "Not set";
   if (previewFunding) previewFunding.textContent = fundingLabels[state.funding.model] || "Not set";
