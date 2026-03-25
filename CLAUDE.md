@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Priceless Deal Orchestrator** — an interactive demo/prototype built by Qurable for Mastercard. It simulates a multi-actor loyalty deal management platform with three user roles:
 
-1. **Benefit Creator** (Merchant/Partner) — creates promotional offers via a 6-step wizard
+1. **Benefit Creator** (Merchant/Partner) — creates promotional offers via a tabbed wizard
 2. **Network Orchestrator** (Mastercard Admin) — reviews and approves deals against governance rules
 3. **Issuer Publisher** (Bank) — activates and publishes approved deals to customers
 
@@ -20,7 +20,7 @@ python3 -m http.server 8000
 npx http-server
 ```
 
-Then open `http://localhost:8000`. The app also works by opening `index.html` directly in a browser.
+Then open `http://localhost:8000`. Also works by opening `index.html` directly in a browser.
 
 ## Architecture
 
@@ -29,8 +29,9 @@ Then open `http://localhost:8000`. The app also works by opening `index.html` di
 | File | Purpose |
 |------|---------|
 | `index.html` | Minimal HTML shell, loads `app.js` and `styles.css` |
-| `app.js` | All application logic (~1700 lines) |
-| `styles.css` | All styles (~1382 lines) with CSS custom properties design system |
+| `app.js` | All application logic (~4000+ lines) |
+| `styles.css` | All styles with CSS custom properties design system |
+| `design-system.html` | Standalone design system reference (not part of the app flow) |
 | `assets/` | Images and SVG assets |
 
 **External dependencies** (CDN only):
@@ -39,46 +40,52 @@ Then open `http://localhost:8000`. The app also works by opening `index.html` di
 
 ### State Management
 
-A single global `state` object is the source of truth for all UI. It persists to `localStorage` (version-controlled via `STATE_VERSION`).
+A single global `state` object is the source of truth. Persists to `localStorage` under key `"priceless-demo-v4"` (version-controlled via `STATE_VERSION = 4` — bump when making breaking state changes).
 
 Key state paths:
-- `state.screen` — current route
-- `state.wizardStep` — offer creation wizard step (0–5)
-- `state.offer` — the demo Zappos deal data
-- `state.workflow` — approval status across all actors
-- `state.governance` — review timestamps and feedback
-- `state.activation` — issuer activation details
+- `state.screen` — current route (use `S.*` constants, never raw strings)
+- `state.wizardTab` — active tab in the offer creation wizard (`basic` | `offer` | `targeting` | `validity` | `funding` | `media` | `review`)
+- `state.benefit` — current wizard draft (shape defined by `defaultBenefitDraft()`)
+- `state.benefits` — list of all merchant benefit drafts
+- `state.workflow` — cross-actor approval status (`submitted`, `orchestratorDecision`, `issuerActivated`)
+- `state.network` — network actor sub-state (`queueView`, `selectedDealId`, `aiView`, `selectedLibraryDealId`)
+- `state.issuer` — issuer actor sub-state (`libraryView`, `activationStep`)
+- `state.merchantOnboarded` — whether the merchant has completed onboarding
 
-State helpers: `getValue(path)` / `setValue(path, value)` use dot-notation. `setValue` automatically persists state and re-renders.
+State helpers: `getValue(path)` / `setValue(path, value)` use dot-notation. `setValue` auto-persists and re-renders. To reset all state, use the **Reset demo** button (action `reset-demo`) in the sidebar.
 
 ### Routing
 
-Hash-based: `window.location.hash` → `parseHash()` → `state.screen`. `navigate(screen)` changes the screen, syncs the hash, and triggers a full re-render.
+All screen identifiers live in the `S` constant object (never use raw strings). Hash-based: `window.location.hash` → `parseHash()` → `state.screen`. `navigate(screen)` changes screen, syncs hash, triggers full re-render.
+
+Shortcut nav actions for jumping mid-flow: `flow-submitted`, `flow-approved`, `flow-activated` (skips actors to reach a specific state).
 
 ### Rendering
 
-`render()` calls `renderScreen()` which dispatches to one of ~17 `render*()` functions based on `state.screen`. Every render is a full DOM replacement of `#app`. The `shell(content)` helper wraps content with the sidebar and topbar.
+`render()` → `renderScreen()` dispatches to one of ~20 `render*()` functions based on `state.screen`. Every render is a full DOM replacement of `#app`. The `shell(content)` helper wraps content with the sidebar and topbar.
 
 ### Event Handling
 
 All events are delegated on `document`. UI elements use `data-*` attributes:
-- `data-nav` — navigation
-- `data-action` — triggers workflow actions (register, submit, approve, reject, activate, etc.)
+- `data-nav` — sidebar navigation (maps to `S.*` via nav action strings)
+- `data-action` — triggers actions handled in `handleAction()`
 - `data-bind` — two-way form binding to state paths
 - `data-open-modal` / `data-close-modal` — modal control
 
 ### Screens
 
-| Actor | Screen keys |
+| Actor | Screen keys (`S.*`) |
 |-------|-------------|
 | Landing | `index` |
-| Merchant | `merchant/home`, `merchant/auth`, `merchant/profile`, `merchant/wizard`, `merchant/review`, `merchant/deals` |
+| Merchant | `merchant/invite`, `merchant/join`, `merchant/register`, `merchant/otp`, `merchant/onboard`, `merchant/dashboard`, `merchant/benefits`, `merchant/new`, `merchant/partnerships` |
 | Network | `network/queue`, `network/detail`, `network/ai`, `network/rules`, `network/library` |
-| Issuer | `issuer/library`, `issuer/activation`, `issuer/redemption`, `issuer/analytics`, `issuer/lifecycle` |
+| Issuer | `issuer/library`, `issuer/activation`, `issuer/analytics`, `issuer/lifecycle` |
+
+The merchant flow has a full onboarding sequence: invite → join → register → otp → onboard → dashboard. The offer creation wizard lives at `merchant/new` and uses `state.wizardTab` for its tabs.
 
 ### Styling
 
-CSS custom properties define the full design system (typography scale, spacing, colors, radii). Brand colors: Mastercard Orange `#ff9e1b`, Red `#eb001b`. Semantic colors: success `#197a43`. All component styles are hand-written — no CSS framework.
+CSS custom properties define the full design system. Brand colors: Mastercard Orange `#ff9e1b`, Red `#eb001b`. Semantic colors: success `#197a43`. All component styles are hand-written — no CSS framework. Refer to `design-system.html` for the visual token reference.
 
 ## Demo Data
 
@@ -86,3 +93,5 @@ The hardcoded demo scenario is a Zappos Valentine's Day 2-for-1 Shoes offer. Per
 - **Merchant:** Nina Watts (Zappos Merchant Admin)
 - **Network:** Mastercard Governance (Network Admin)
 - **Issuer:** Avery Coleman (Waltmart Offer Manager)
+
+Benefit list seeded in `DEMO_BENEFITS`; the active Zappos deal in `DEMO_BENEFIT_DETAIL`. Wizard form shape is defined by `defaultBenefitDraft()` and `defaultFundingDraft()`.
