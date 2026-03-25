@@ -21,7 +21,8 @@ const S = {
   issuerLibrary:       "issuer/library",
   issuerActivation:    "issuer/activation",
   issuerAnalytics:     "issuer/analytics",
-  issuerLifecycle:     "issuer/lifecycle",
+  issuerLifecycle:      "issuer/lifecycle",
+  pricelessColombia:    "priceless/colombia",
 };
 
 /* ─── DEMO DATA ──────────────────────────────────────────────────────────── */
@@ -37,7 +38,7 @@ const DEMO_BENEFITS = [
 const DEMO_BENEFIT_DETAIL = {
   id: "b-zappos",
   title: "Valentine's Day 2-for-1 Shoes",
-  tagline: "Buy one pair, get one free for Valentine's Day.",
+  tagline: "Buy one pair on February, get $40 refund for Valentine's Day.",
   description: "$40 cash back reward on purchases + $400",
   status: "Pending",
   assigned: 923,
@@ -45,14 +46,29 @@ const DEMO_BENEFIT_DETAIL = {
   audience: "~40%",
   audienceCount: "3265 members approx",
   images: [
-    { label:"Hero offer",      kind:"hero",     title:"2-for-1",      sub:"Valentine shoes" },
-    { label:"Lifestyle",       kind:"lifestyle", title:"Date night",  sub:"Weekend drop" },
-    { label:"Product shot",    kind:"product",  title:"New arrivals", sub:"Selected pairs" },
-    { label:"Member code",     kind:"code",     title:"Cashback",     sub:"Scan to redeem" },
+    { label:"Hero offer",      kind:"hero",      title:"2-for-1",      sub:"Valentine shoes", src:"assets/shoes.jpg" },
+    { label:"Lifestyle",       kind:"lifestyle", title:"Date night",   sub:"Weekend drop",    src:"assets/experience.jpg" },
+    { label:"Product shot",    kind:"product",   title:"New arrivals", sub:"Selected pairs",  src:"assets/ropamujer.jpg" },
+    { label:"Member code",     kind:"code",      title:"Cashback",     sub:"Scan to redeem",  src:"assets/spa.jpg" },
   ],
   days: ["D","L","M","M","J","V","S"],
   activeDays: [1,2,3,4],
 };
+
+const ZAPPOS_HERO_FALLBACK = "assets/shoes.jpg";
+const PRICELESS_COLOMBIA_HERO = "assets/priceless-colombia-hero.png";
+const PRICELESS_COLOMBIA_FOOTER = "assets/priceless-colombia-footer.png";
+const QUEUE_DEAL_PREVIEW_IMAGES = {
+  q1: "assets/shoes.jpg",
+  q2: "assets/ropamujer2.jpg",
+  q3: "assets/experience2.jpg",
+};
+const DEFAULT_MEDIA_LIBRARY = [
+  { name: "shoes.jpg", src: "assets/shoes.jpg", title: "2-for-1", alt: "Valentine shoes visual" },
+  { name: "experience.jpg", src: "assets/experience.jpg", title: "Date night", alt: "Weekend drop visual" },
+  { name: "ropamujer.jpg", src: "assets/ropamujer.jpg", title: "New arrivals", alt: "Selected pairs visual" },
+  { name: "spa.jpg", src: "assets/spa.jpg", title: "Cashback", alt: "Scan to redeem visual" },
+];
 
 function defaultBenefitDraft() {
   return {
@@ -76,6 +92,8 @@ function defaultBenefitDraft() {
       { id: "secondary", label: "Secondary", name: "", src: "", title: "", alt: "" },
       { id: "extra", label: "Extra", name: "", src: "", title: "", alt: "", optional: true },
     ],
+    tcDoc: "",
+    tcUrl: "",
   };
 }
 
@@ -131,6 +149,14 @@ function buildMockMediaAsset(kind, title, sub) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function getPrimaryMediaSrc(assets, fallback = "") {
+  return (assets || []).find(asset => asset?.src)?.src || fallback;
+}
+
+function getQueueDealPreviewSrc(deal) {
+  return QUEUE_DEAL_PREVIEW_IMAGES[deal?.id] || buildMockMediaAsset("hero", deal?.title?.slice(0, 14) || "Deal", deal?.merchant || "");
+}
+
 function loadBenefitIntoWizard(benefitId) {
   const selected = state.benefits.find(b => b.id === benefitId);
   if (selected?.draft) {
@@ -163,8 +189,8 @@ function loadBenefitIntoWizard(benefitId) {
       if (!source) return asset;
       return {
         ...asset,
-        name: `${source.label}.png`,
-        src: buildMockMediaAsset(source.kind, source.title, source.sub),
+        name: source.src ? source.src.split("/").pop() : `${source.label}.png`,
+        src: source.src || buildMockMediaAsset(source.kind, source.title, source.sub),
         title: source.title,
         alt: `${source.sub} visual`,
       };
@@ -249,7 +275,8 @@ function initialState() {
     merchantOnboarded: false,
     merchantEmail: "",
     merchantOtp: "358606",
-    company: { name:"Zappos", size:"", industry:"Footwear", city:"Las Vegas", website:"zappos.com", logo:null },
+    company: { name:"Zappos", size:"", industry:"Footwear", city:"Bogotá", website:"zappos.com", logo:null },
+    tcAccepted: false,
     // benefits list
     selectedBenefitId: null,
     benefits: [...DEMO_BENEFITS],
@@ -275,6 +302,7 @@ function initialState() {
       rulesTab: "all",
       libraryTab: "all",
       confirmModal: null, // null | { action: "approve"|"reject"|"changes" }
+      previewOpen: false,
     },
     // issuer publisher
     issuer: {
@@ -349,6 +377,10 @@ function loadState() {
       },
       workflow: { ...def.workflow, ...(parsed.workflow || {}) },
     };
+    next.benefits = (parsed.benefits || def.benefits).map(benefit => ({
+      ...benefit,
+      draft: benefit?.draft ? normalizeBenefitDraft({ ...def.benefit, ...benefit.draft }) : benefit?.draft,
+    }));
     next.benefit = normalizeBenefitDraft({ ...def.benefit, ...(parsed.benefit || {}) });
     next.activePicker = null;
     next.network.confirmModal = null;
@@ -533,12 +565,15 @@ function normalizeBenefitDraft(benefit) {
   const mediaAssets = Array.isArray(benefit.mediaAssets)
     ? defaultAssets.map((asset, index) => {
         const current = benefit.mediaAssets[index] || {};
+        const currentSrc = cleanFieldValue(current.src);
+        const fallbackAsset = DEFAULT_MEDIA_LIBRARY[index];
+        const shouldReplaceMock = currentSrc.startsWith("data:image/svg+xml");
         return {
           ...asset,
-          name: cleanFieldValue(current.name),
-          src: cleanFieldValue(current.src),
-          title: cleanFieldValue(current.title),
-          alt: cleanFieldValue(current.alt),
+          name: shouldReplaceMock ? fallbackAsset?.name || cleanFieldValue(current.name) : cleanFieldValue(current.name),
+          src: shouldReplaceMock ? fallbackAsset?.src || currentSrc : currentSrc,
+          title: cleanFieldValue(current.title) || fallbackAsset?.title || "",
+          alt: cleanFieldValue(current.alt) || fallbackAsset?.alt || "",
         };
       })
     : defaultAssets;
@@ -735,7 +770,7 @@ function logoBlock(size = "md") {
     ${mcLogo()}
     <div>
       <div style="display:flex;align-items:center;gap:4px;">
-        <span class="sidebar-brand-name" style="font-size:${s}">priceless</span>
+        <span class="sidebar-brand-name" style="font-size:${s}">mastercard</span>
         <span class="sidebar-brand-by">by</span>
         <span class="sidebar-brand-q">Qurable</span>
       </div>
@@ -809,7 +844,7 @@ function appShell(content, activePath) {
           <div class="user-info">
             <div class="user-name">Nina Watts</div>
             <div class="user-role">Merchant Admin · Zappos</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇨🇴 Colombia</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -898,6 +933,7 @@ function renderScreen() {
     case S.issuerActivation:     return renderIssuerActivation();
     case S.issuerAnalytics:      return renderIssuerAnalytics();
     case S.issuerLifecycle:      return renderIssuerLifecycle();
+    case S.pricelessColombia:    return renderPricelessLanding();
     default:                     return renderIndex();
   }
 }
@@ -1019,7 +1055,7 @@ function renderIndex() {
     <div class="index-topbar">
       <div class="index-logo">
         ${mcLogo()}
-        <span class="brand-name">priceless</span>
+        <span class="brand-name">mastercard</span>
         <span class="brand-by">by</span>
         <span class="brand-q">Qurable</span>
       </div>
@@ -1028,7 +1064,7 @@ function renderIndex() {
       </button>
     </div>
     <div class="index-hero">
-      <h1>Priceless Deal Orchestrator</h1>
+      <h1>Mastercard Deal Orchestrator</h1>
       <p>A multi-actor demo showing how merchants, Mastercard, and issuing banks collaborate to create, approve, and publish loyalty deals.</p>
     </div>
 
@@ -1055,22 +1091,22 @@ function renderInvite() {
         <div class="email-meta">
           <div class="email-subject">We want you to be part of us</div>
           <div class="email-from">
-            <strong>FROM</strong> &lt;priceless@mastercard.com&gt; &nbsp;·&nbsp; 8:02 AM (34 minutes ago)
+            <strong>FROM</strong> &lt;mastercard@mastercard.com&gt; &nbsp;·&nbsp; 8:02 AM (34 minutes ago)
           </div>
         </div>
         <div class="email-body">
           <div class="email-card">
-            <h2>Join the Priceless network and watch your audience soar!</h2>
+            <h2>Join the Mastercard network and watch your audience soar!</h2>
             <p>Hello Alex,</p>
             <p>We are ready to take the next step together!</p>
-            <p>You can now activate your partnership with Priceless and start offering benefits to millions of users across the United States.</p>
+            <p>You can now activate your partnership with Mastercard and start offering benefits to millions of users across Colombia.</p>
             <p>Click the link below to set up your profile.</p>
-            <button class="email-card-btn" data-nav="${S.merchantJoin}">Join Priceless ${icon("arrow-right")}</button>
+            <button class="email-card-btn" data-nav="${S.merchantJoin}">Join Mastercard ${icon("arrow-right")}</button>
           </div>
         </div>
         <div class="email-cta-wrap">
           <div style="margin-bottom:8px">
-            <button class="email-cta-big" data-nav="${S.merchantJoin}">Join Priceless ${icon("arrow-right")}</button>
+            <button class="email-cta-big" data-nav="${S.merchantJoin}">Join Mastercard ${icon("arrow-right")}</button>
           </div>
           <div style="font-size:13px;color:var(--muted)">or <a href="#${S.index}" style="color:var(--brand);font-weight:500">go back to actor selection</a></div>
         </div>
@@ -1084,7 +1120,7 @@ function renderJoin() {
     <div class="auth-topbar">
       <div class="auth-logo">
         ${mcLogo()}
-        <span class="brand-name">priceless</span>
+        <span class="brand-name">mastercard</span>
         <span class="brand-by">by</span>
         <span class="brand-q">Qurable</span>
       </div>
@@ -1092,8 +1128,8 @@ function renderJoin() {
     <div class="join-content">
       <div class="join-text">
         <h1>Connect with millions of users across the region, boosting your client base and enhancing their lifetime value.</h1>
-        <p>Connect with millions of users through the Priceless network.<br>Join in today!</p>
-        <button class="join-btn" data-nav="${S.merchantRegister}">Join Priceless ${icon("arrow-right")}</button>
+        <p>Connect with millions of users through the Mastercard network.<br>Join in today!</p>
+        <button class="join-btn" data-nav="${S.merchantRegister}">Join Mastercard ${icon("arrow-right")}</button>
         <a class="join-decline" href="#${S.index}">Decline invitation</a>
       </div>
     </div>
@@ -1105,7 +1141,7 @@ function renderRegister() {
     <div class="auth-topbar">
       <div class="auth-logo">
         ${mcLogo()}
-        <span class="brand-name">priceless</span>
+        <span class="brand-name">mastercard</span>
         <span class="brand-by">by</span>
         <span class="brand-q">Qurable</span>
       </div>
@@ -1136,7 +1172,7 @@ function renderOtp() {
     <div class="auth-topbar">
       <div class="auth-logo">
         ${mcLogo()}
-        <span class="brand-name">priceless</span>
+        <span class="brand-name">mastercard</span>
         <span class="brand-by">by</span>
         <span class="brand-q">Qurable</span>
       </div>
@@ -1172,7 +1208,7 @@ function renderOnboard() {
     <div class="auth-topbar">
       <div class="auth-logo">
         ${mcLogo()}
-        <span class="brand-name">priceless</span>
+        <span class="brand-name">mastercard</span>
         <span class="brand-by">by</span>
         <span class="brand-q">Qurable</span>
       </div>
@@ -1218,9 +1254,10 @@ function renderOnboard() {
             <label>City</label>
             <select id="co-city">
               <option value="">Select city</option>
-              <option value="Las Vegas" ${c.city==="Las Vegas"?"selected":""}>Las Vegas</option>
-              <option value="New York" ${c.city==="New York"?"selected":""}>New York</option>
-              <option value="Los Angeles" ${c.city==="Los Angeles"?"selected":""}>Los Angeles</option>
+              <option value="Bogotá" ${c.city==="Bogotá"?"selected":""}>Bogotá</option>
+              <option value="Medellín" ${c.city==="Medellín"?"selected":""}>Medellín</option>
+              <option value="Cali" ${c.city==="Cali"?"selected":""}>Cali</option>
+              <option value="Cartagena" ${c.city==="Cartagena"?"selected":""}>Cartagena</option>
             </select>
           </div>
           <div class="profile-field">
@@ -1228,7 +1265,13 @@ function renderOnboard() {
             <input id="co-website" value="${c.website}" placeholder="Enter link http://" />
           </div>
         </div>
-        <button class="auth-btn" data-action="complete-onboard">Next</button>
+        <div class="tc-block">
+          <label class="tc-label">
+            <input type="checkbox" id="tc-accept" class="tc-checkbox" ${state.tcAccepted ? "checked" : ""} data-action="toggle-tc" />
+            <span>I have read and accept the <a href="#" class="tc-link" onclick="return false">Mastercard Platform Terms &amp; Conditions</a> and the <a href="#" class="tc-link" onclick="return false">Merchant Participation Agreement</a>.</span>
+          </label>
+        </div>
+        <button class="auth-btn" data-action="complete-onboard" ${state.tcAccepted ? "" : "disabled"} style="${state.tcAccepted ? "" : "opacity:.5;cursor:not-allowed"}">Next</button>
         <div class="auth-skip" data-action="skip-onboard">Skip for now</div>
       </div>
     </div>
@@ -1685,10 +1728,10 @@ function renderWizardValidity(b) {
           <option value="" ${!b.timezone ? "selected" : ""}>Select time zone</option>
           <option value="Buenos Aires, Argentina (GMT -3:00)" ${b.timezone==="Buenos Aires, Argentina (GMT -3:00)"?"selected":""}>Buenos Aires, Argentina (GMT -3:00)</option>
           <option value="Mexico City, Mexico (GMT -6:00)" ${b.timezone==="Mexico City, Mexico (GMT -6:00)"?"selected":""}>Mexico City, Mexico (GMT -6:00)</option>
-          <option value="New York, USA (GMT -5:00)" ${b.timezone==="New York, USA (GMT -5:00)"?"selected":""}>New York, USA (GMT -5:00)</option>
-          <option value="Miami, USA (GMT -5:00)" ${b.timezone==="Miami, USA (GMT -5:00)"?"selected":""}>Miami, USA (GMT -5:00)</option>
-          <option value="Los Angeles, USA (GMT -8:00)" ${b.timezone==="Los Angeles, USA (GMT -8:00)"?"selected":""}>Los Angeles, USA (GMT -8:00)</option>
-          <option value="Chicago, USA (GMT -6:00)" ${b.timezone==="Chicago, USA (GMT -6:00)"?"selected":""}>Chicago, USA (GMT -6:00)</option>
+          <option value="Bogotá, Colombia (GMT -5:00)" ${b.timezone==="Bogotá, Colombia (GMT -5:00)"?"selected":""}>Bogotá, Colombia (GMT -5:00)</option>
+          <option value="Medellín, Colombia (GMT -5:00)" ${b.timezone==="Medellín, Colombia (GMT -5:00)"?"selected":""}>Medellín, Colombia (GMT -5:00)</option>
+          <option value="Cali, Colombia (GMT -5:00)" ${b.timezone==="Cali, Colombia (GMT -5:00)"?"selected":""}>Cali, Colombia (GMT -5:00)</option>
+          <option value="Cartagena, Colombia (GMT -5:00)" ${b.timezone==="Cartagena, Colombia (GMT -5:00)"?"selected":""}>Cartagena, Colombia (GMT -5:00)</option>
           <option value="São Paulo, Brazil (GMT -3:00)" ${b.timezone==="São Paulo, Brazil (GMT -3:00)"?"selected":""}>São Paulo, Brazil (GMT -3:00)</option>
           <option value="Bogotá, Colombia (GMT -5:00)" ${b.timezone==="Bogotá, Colombia (GMT -5:00)"?"selected":""}>Bogotá, Colombia (GMT -5:00)</option>
           <option value="Santiago, Chile (GMT -4:00)" ${b.timezone==="Santiago, Chile (GMT -4:00)"?"selected":""}>Santiago, Chile (GMT -4:00)</option>
@@ -1771,6 +1814,22 @@ function renderWizardMedia(b) {
       <div class="form-section-title">Images</div>
       <div class="form-section-sub">Upload images for each position</div>
       <div class="media-slots-row">${mediaSlots}</div>
+      <button class="btn-ai media-ai-btn" type="button" data-action="open-ai-image-gen">
+        ${icon("sparkle")} Generate image with AI
+      </button>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Terms &amp; Conditions</div>
+      <div class="form-section-sub">Attach the specific terms and conditions for this offer. Accepted formats: PDF, DOC, or paste a public URL.</div>
+      <div class="tc-upload-row">
+        <div class="tc-upload-zone" data-action="upload-tc-doc">
+          ${icon("file-text")}
+          <span>${b.tcDoc ? b.tcDoc : "Upload PDF or DOC"}</span>
+          ${b.tcDoc ? `<button class="tc-clear-btn" type="button" data-action="clear-tc-doc">${icon("x")}</button>` : ""}
+        </div>
+        <div class="tc-or">or</div>
+        <input class="form-input tc-url-input" type="url" placeholder="https://yoursite.com/terms.pdf" value="${b.tcUrl || ""}" data-bind="benefit.tcUrl" />
+      </div>
     </div>
     <div class="form-section">
       <div class="form-section-title">Custom attributes</div>
@@ -1801,7 +1860,7 @@ function renderWizardMedia(b) {
 
 function renderWizardPreview(b) {
   const title = b.title || "New benefit";
-  const sub = b.description || "$40 cash back reward on purchases + $400";
+  const sub = b.mediaDescription || b.description || "Buy one pair on February, get $40 refund for Valentine's Day.";
   const discountAmount = b.discountValue ? `${b.discountValue}% off` : "Not set";
   const fundingLabels = {
     merchant: "Merchant-funded",
@@ -1991,9 +2050,9 @@ function renderDashboard() {
     </tr>`).join("");
 
   const issuers = [
-    { name:"BBVA",         country:"🇺🇸", benefits:4, budget:"$22K", pct:74 },
-    { name:"Chase",        country:"🇺🇸", benefits:3, budget:"$18K", pct:61 },
-    { name:"Citi",         country:"🇺🇸", benefits:1, budget:"$10K", pct:31 },
+    { name:"BBVA",         country:"🇨🇴", benefits:4, budget:"$22K", pct:74 },
+    { name:"Bancolombia",  country:"🇨🇴", benefits:3, budget:"$18K", pct:61 },
+    { name:"Davivienda",   country:"🇨🇴", benefits:1, budget:"$10K", pct:31 },
   ];
   const issuerDistHtml = issuers.map(i => `
     <div class="issuer-dist-row">
@@ -2009,7 +2068,7 @@ function renderDashboard() {
     { icon:"check-circle", color:"var(--success)", text:'<strong>BBVA</strong> activated "Valentine\'s 2-for-1 Shoes"',    time:"2h ago" },
     { icon:"clock",        color:"var(--warning)", text:'<strong>Zappos</strong> submitted "Spring Sale 30% Off" for review',    time:"5h ago" },
     { icon:"x-circle",     color:"var(--danger)",  text:'<strong>Mastercard</strong> requested changes on "Back to School"',     time:"1d ago" },
-    { icon:"gift",         color:"var(--brand)",   text:'<strong>Chase</strong> activated "5% Cashback – Apple Pay"',             time:"2d ago" },
+    { icon:"gift",         color:"var(--brand)",   text:'<strong>Bancolombia</strong> activated "5% Cashback – Apple Pay"',             time:"2d ago" },
     { icon:"pause-circle", color:"var(--muted)",   text:'<strong>Zappos</strong> paused "30% off cleaning products"',            time:"3d ago" },
   ];
   const activityHtml = activity.map(a => `
@@ -2142,7 +2201,7 @@ function renderDashboard() {
 /* ─── PARTNERSHIPS ───────────────────────────────────────────────────────── */
 const DEMO_ISSUERS = [
   {
-    id:"i1", name:"BBVA", country:"United States", flag:"🇺🇸",
+    id:"i1", name:"BBVA", country:"Colombia", flag:"🇨🇴",
     initials:"BB", color:"#004B9B",
     status:"Active", joinDate:"Jan 2024",
     activeBenefits:4, totalRedemptions:8302, budget:"$22,000",
@@ -2155,11 +2214,11 @@ const DEMO_ISSUERS = [
     ],
   },
   {
-    id:"i2", name:"Chase", country:"United States", flag:"🇺🇸",
-    initials:"CH", color:"#0D47A1",
+    id:"i2", name:"Bancolombia", country:"Colombia", flag:"🇨🇴",
+    initials:"BC", color:"#FFCC00",
     status:"Active", joinDate:"Mar 2024",
     activeBenefits:3, totalRedemptions:5200, budget:"$18,000",
-    contact:"loyalty@chase.com",
+    contact:"loyalty@bancolombia.com",
     benefits:[
       { title:"5% Cashback – Apple Pay",       model:"Co-funded", status:"Published", redemptions:3100 },
       { title:"15% Off school shoes",          model:"Merchant",  status:"Published", redemptions:1600 },
@@ -2167,21 +2226,21 @@ const DEMO_ISSUERS = [
     ],
   },
   {
-    id:"i3", name:"Citi", country:"United States", flag:"🇺🇸",
-    initials:"CI", color:"#117A65",
+    id:"i3", name:"Davivienda", country:"Colombia", flag:"🇨🇴",
+    initials:"DV", color:"#C0392B",
     status:"Negotiating", joinDate:"Nov 2024",
     activeBenefits:1, totalRedemptions:800, budget:"$10,000",
-    contact:"benefits@citi.com",
+    contact:"benefits@davivienda.com",
     benefits:[
       { title:"20% Off pantry essentials", model:"Issuer", status:"Published", redemptions:800 },
     ],
   },
   {
-    id:"i4", name:"Capital One", country:"United States", flag:"🇺🇸",
-    initials:"CO", color:"#922B21",
+    id:"i4", name:"Banco de Bogotá", country:"Colombia", flag:"🇨🇴",
+    initials:"BB", color:"#1A5276",
     status:"Invited", joinDate:"—",
     activeBenefits:0, totalRedemptions:0, budget:"—",
-    contact:"partnerships@capitalone.com",
+    contact:"partnerships@bancodebogota.com",
     benefits:[],
   },
 ];
@@ -2298,7 +2357,6 @@ function renderPartnerships() {
             <div class="topbar-breadcrumb">${icon("handshake")} Partnerships</div>
           </div>
           <div class="topbar-right">
-            <button class="btn btn-primary">${icon("plus")} Invite issuer</button>
             <button class="btn-ai">${icon("sparkle")} AI assistant</button>
           </div>
         </div>
@@ -2401,7 +2459,7 @@ const DEMO_QUEUE = [
     timezone:"Buenos Aires, Argentina (GMT -3:00)",
     startDate:"09/17/2025", endDate:"—", activeDays:[0,4,5,6],
     mediaTitle:"Cashback: $40",
-    mediaDescription:"Buy one pair, get one free for Valentine's Day.",
+    mediaDescription:"Buy one pair on February, get $40 refund for Valentine's Day.",
   },
   {
     id:"q2",
@@ -2429,8 +2487,8 @@ const DEMO_QUEUE = [
   },
   {
     id:"q3",
-    title:"Back-to-School $300 Laptop Bonus",
-    merchant:"BestBuy", merchantColor:"#0D47A1", merchantInitials:"BB",
+    title:"Sunrise Balloon Escape — $300 Travel Credit",
+    merchant:"Vuelo Colombia", merchantColor:"#B85C38", merchantInitials:"VC",
     type:"Fixed", funding:"issuer",
     submittedDate:"03/15/2026", submittedTime:"03:45 PM",
     slaHours:48, elapsedHours:145,
@@ -2446,10 +2504,10 @@ const DEMO_QUEUE = [
       { ruleId:"r8", verdict:"pass" },
     ],
     discount:"300", budget:"45000", perRedemption:"300",
-    timezone:"Los Angeles, USA (GMT -8:00)",
+    timezone:"Bogota, Colombia (GMT -5:00)",
     startDate:"08/10/2026", endDate:"08/14/2026", activeDays:[0,1,2,3,4],
-    mediaTitle:"$300 Laptop Bonus",
-    mediaDescription:"Get $300 back on select laptops for back to school.",
+    mediaTitle:"$300 Travel Credit",
+    mediaDescription:"Get $300 back on sunrise hot air balloon experiences.",
   },
 ];
 
@@ -2562,7 +2620,7 @@ function networkShell(content, activePath) {
           <div class="user-info">
             <div class="user-name">Marcus Patel</div>
             <div class="user-role">Network Admin · Mastercard</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇨🇴 Colombia</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -2572,6 +2630,49 @@ function networkShell(content, activePath) {
       ${content}
     </div>
   </div>`;
+}
+
+/* ─── PRICELESS COLOMBIA LANDING ─────────────────────────────────────────── */
+function renderPricelessLanding() {
+  const liveHeroSrc = getPrimaryMediaSrc(state.benefit.mediaAssets, ZAPPOS_HERO_FALLBACK);
+  const liveTitle   = (state.benefit.title || "").trim() || "Valentine's Day 2-for-1 Shoes";
+
+  const offers = [
+    { id:"live", title: liveTitle,                                                                                     brand:"Zappos",        category:"Calzado",      img: liveHeroSrc,                  isNew:true },
+    { id:"cl1",  title:"Disfruta 20% de descuento todos los días en la web y app de McDonald's",                       brand:"McDonald's",     category:"Gastronomía",  img:"assets/macdonalds.jpg" },
+    { id:"cl2",  title:"Aventura extrema: senderismo y puentes colgantes en los Andes",                               brand:"Adventure CO",   category:"Experiencias", img:"assets/experience.jpg" },
+    { id:"cl3",  title:"Experiencia en globo aerostático sobre el altiplano colombiano",                               brand:"Vuelo Colombia", category:"Experiencias", img:"assets/experience2.jpg" },
+    { id:"cl4",  title:"Hasta 30% Off en moda y tendencias — colección seleccionada",                                 brand:"Levi's",         category:"Moda",         img:"assets/ropamujer.jpg" },
+    { id:"cl5",  title:"Nueva colección con descuento exclusivo para tarjetahabientes Mastercard",                     brand:"Studio Fashion", category:"Moda",         img:"assets/ropamujer2.jpg" },
+    { id:"cl6",  title:"Ritual de bienestar: sauna, jacuzzi y masajes con 25% Off",                                   brand:"Spa Premium",   category:"Bienestar",    img:"assets/sauna.jpg" },
+    { id:"cl7",  title:"Day spa completo para dos personas — relájate y recarga energías",                             brand:"Wellness CO",   category:"Bienestar",    img:"assets/spa.jpg" },
+    { id:"cl8",  title:"Escapada de fin de semana a destinos naturales únicos de Colombia",                            brand:"Travel CO",     category:"Viajes",       img:"assets/travel.jpg" },
+  ];
+
+  const cards = offers.map(o => `
+    <div class="pl-card${o.isNew ? " pl-card-new" : ""}">
+      <div class="pl-card-img-wrap">
+        <img src="${o.img}" alt="${o.title}" class="pl-card-img" />
+        <div class="pl-card-mc-badge">${mcLogo()}</div>
+        ${o.isNew ? `<div class="pl-card-new-badge">Nuevo</div>` : ""}
+      </div>
+      <div class="pl-card-body">
+        <div class="pl-card-category">${o.category}</div>
+        <div class="pl-card-title">${o.title}</div>
+        <div class="pl-card-meta">Colombia · ${o.brand}</div>
+      </div>
+    </div>`).join("");
+
+  return `
+    <div class="pl-page">
+      <img src="${PRICELESS_COLOMBIA_HERO}" alt="Mastercard Colombia" class="pl-hero-banner" />
+      <section class="pl-benefits-section">
+        <div class="pl-grid">${cards}</div>
+      </section>
+      <footer class="pl-footer-banner-wrap">
+        <img src="${PRICELESS_COLOMBIA_FOOTER}" alt="Mastercard footer" class="pl-footer-banner" />
+      </footer>
+    </div>`;
 }
 
 function renderNetworkQueue() {
@@ -2685,22 +2786,58 @@ function renderNetworkQueue() {
         ${filterChips}
       </div>
 
-      <div class="table-wrap">
-        <table class="queue-table">
-          <thead><tr>
-            <th>Submission</th>
-            <th>Merchant</th>
-            <th>Funding</th>
-            <th>Submitted</th>
-            <th>SLA</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr></thead>
-          <tbody>
-            ${rows || `<tr><td colspan="7"><div class="empty-state" style="padding:32px 0"><p>No submissions match this filter.</p></div></td></tr>`}
-          </tbody>
-        </table>
+      <div class="queue-split-layout${state.network.selectedDealId ? " has-preview" : ""}">
+        <div class="table-wrap queue-table-pane">
+          <table class="queue-table">
+            <thead><tr>
+              <th>Submission</th>
+              <th>Merchant</th>
+              <th>Funding</th>
+              <th>Submitted</th>
+              <th>SLA</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr></thead>
+            <tbody>
+              ${rows || `<tr><td colspan="7"><div class="empty-state" style="padding:32px 0"><p>No submissions match this filter.</p></div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
       </div>
+      ${state.network.selectedDealId ? (() => {
+        const selDeal = getQueueDeal(state.network.selectedDealId);
+        const heroSrc = selDeal.id === "q1"
+          ? getPrimaryMediaSrc(state.benefit.mediaAssets, ZAPPOS_HERO_FALLBACK)
+          : getQueueDealPreviewSrc(selDeal);
+        return `
+        <div class="priceless-preview-backdrop" data-action="close-priceless-preview">
+          <div class="priceless-preview-panel" onclick="event.stopPropagation()">
+            <div class="preview-panel-header">
+              <div class="preview-panel-title">${icon("eye")} Mastercard Preview</div>
+              <button class="btn-icon" data-action="close-priceless-preview" title="Close">${icon("x")}</button>
+            </div>
+            <p class="preview-panel-sub">How this offer will appear on <strong>mastercard.com/everydayvaluecolombia</strong></p>
+            <div class="priceless-card">
+              <div class="priceless-card-img-wrap">
+                <img src="${heroSrc}" class="priceless-card-img" alt="${selDeal.title}" />
+                <div class="priceless-card-mc-badge">${mcLogo()}</div>
+              </div>
+              <div class="priceless-card-body">
+                <div class="priceless-card-title">${selDeal.title}</div>
+                <div class="priceless-card-meta">${selDeal.mediaDescription}</div>
+                <div class="priceless-card-meta">Colombia</div>
+                <div class="priceless-card-meta">${selDeal.merchant}</div>
+              </div>
+            </div>
+            <a class="btn btn-secondary preview-view-on-site" href="#${S.pricelessColombia}" target="_blank" rel="noopener noreferrer">
+              ${icon("arrow-square-out")} View on site
+            </a>
+            <button class="btn btn-primary preview-view-on-site" data-nav-deal="${selDeal.id}">
+              ${icon("clipboard-text")} Review deal
+            </button>
+          </div>
+        </div>`;
+      })() : ""}
     </div>`;
 
   // If the user has selected "detail" view, render the deal detail inline
@@ -2767,6 +2904,9 @@ function renderNetworkDetailContent(deal) {
 
   const fundingLabel = { merchant:"Merchant-funded", cofunded:"Co-funded", issuer:"Issuer-funded" };
   const fundingClass = deal.funding;
+  const sidePreviewSrc = deal.id === "q1"
+    ? getPrimaryMediaSrc(state.benefit.mediaAssets, ZAPPOS_HERO_FALLBACK)
+    : getQueueDealPreviewSrc(deal);
 
   const complianceRows = deal.ruleResults.map(r => {
     const rule = GOVERNANCE_RULES.find(g => g.id === r.ruleId);
@@ -2831,6 +2971,19 @@ function renderNetworkDetailContent(deal) {
           <div class="meta-chip"><span class="funding-pill ${fundingClass}">${fundingLabel[deal.funding]}</span></div>
           <div class="meta-chip">${icon("coins")} <span>$${Number(deal.budget).toLocaleString()}</span></div>
           <div class="meta-chip">${icon("receipt")} <span>$${deal.perRedemption}/use</span></div>
+        </div>
+      </div>
+
+      <div class="detail-preview-card">
+        <div class="detail-preview-media">
+          <img src="${sidePreviewSrc}" alt="${deal.title}" class="detail-preview-img" />
+          <div class="detail-preview-badge">${mcLogo()}</div>
+        </div>
+        <div class="detail-preview-body">
+          <div class="detail-preview-kicker">Mastercard preview</div>
+          <div class="detail-preview-title">${deal.title}</div>
+          <div class="detail-preview-copy">${deal.mediaDescription}</div>
+          <div class="detail-preview-meta">Colombia · ${deal.merchant}</div>
         </div>
       </div>
 
@@ -3146,7 +3299,7 @@ function renderNetworkAI() {
         <div class="topbar-breadcrumb">${icon("robot")} AI Analysis</div>
       </div>
       <div class="topbar-right">
-        <span style="font-size:12px;color:var(--muted)">Priceless AI v2 · Analyzed 2 min ago</span>
+        <span style="font-size:12px;color:var(--muted)">Mastercard AI v2 · Analyzed 2 min ago</span>
       </div>
     </div>
     <div class="page-content" style="gap:20px;display:flex;flex-direction:column">
@@ -3198,7 +3351,7 @@ function renderNetworkAI() {
             <div style="font-size:22px;font-weight:800;color:var(--success)">82%</div>
             <div style="font-size:12px;color:var(--muted)">Brand fit score</div>
           </div>
-          <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">Deal language is clear and on-brand. Tone is consistent with Priceless network standards. No negative sentiment detected.</p>
+          <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">Deal language is clear and on-brand. Tone is consistent with Mastercard network standards. No negative sentiment detected.</p>
         </div>
         <div class="dash-card">
           <div class="dash-card-header"><div class="dash-card-title">${icon("users")} Audience Relevance</div></div>
@@ -3302,11 +3455,11 @@ function renderNetworkRules() {
 
 function renderNetworkLibrary() {
   const libraryDeals = [
-    { id:"l1", title:"Summer Getaway 15% Off Hotels",          merchant:"Marriott",  merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", approvedDate:"02/10/2026", issuer:"Chase",      status:"Approved", redemptions:2840 },
-    { id:"l2", title:"5% Cashback on Grocery — Q1",           merchant:"Kroger",    merchantColor:"#1B5E20", merchantInitials:"KR", funding:"issuer",   approvedDate:"01/22/2026", issuer:"BBVA",       status:"Approved", redemptions:6120 },
-    { id:"l3", title:"$50 Off First Smart TV Purchase",        merchant:"Samsung",   merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", approvedDate:"03/01/2026", issuer:"Citi",       status:"Approved", redemptions:1330 },
-    { id:"l4", title:"Free Delivery — 30 Days",               merchant:"DoorDash",  merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", approvedDate:"12/05/2025", issuer:"Chase",      status:"Approved", redemptions:9200 },
-    { id:"l5", title:"Back-to-School Laptop Bonus (revised)", merchant:"BestBuy",   merchantColor:"#0D47A1", merchantInitials:"BB", funding:"issuer",   approvedDate:"—",          issuer:"Pending",     status:"Approved", redemptions:0    },
+    { id:"l1", title:"Summer Getaway 15% Off Hotels",          merchant:"Marriott",  merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", approvedDate:"02/10/2026", issuer:"Bancolombia", status:"Approved", redemptions:2840 },
+    { id:"l2", title:"5% Cashback on Grocery — Q1",           merchant:"Kroger",    merchantColor:"#1B5E20", merchantInitials:"KR", funding:"issuer",   approvedDate:"01/22/2026", issuer:"BBVA",        status:"Approved", redemptions:6120 },
+    { id:"l3", title:"$50 Off First Smart TV Purchase",        merchant:"Samsung",   merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", approvedDate:"03/01/2026", issuer:"Davivienda",  status:"Approved", redemptions:1330 },
+    { id:"l4", title:"Free Delivery — 30 Days",               merchant:"DoorDash",  merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", approvedDate:"12/05/2025", issuer:"Bancolombia", status:"Approved", redemptions:9200 },
+    { id:"l5", title:"Sunrise Balloon Escape (revised)",      merchant:"Vuelo Colombia", merchantColor:"#B85C38", merchantInitials:"VC", funding:"issuer",   approvedDate:"—",          issuer:"Pending",     status:"Approved", redemptions:0    },
   ];
 
   const sel = state.network.selectedDealId;
@@ -3353,7 +3506,7 @@ function renderNetworkLibrary() {
           <div class="detail-section-label">Audit trail</div>
           ${[
             { action:"Submitted by merchant",       actor:`${selDeal.merchant}`,   time:"D-5" },
-            { action:"AI analysis completed",       actor:"Priceless AI v2",       time:"D-5" },
+            { action:"AI analysis completed",       actor:"Mastercard AI v2",       time:"D-5" },
             { action:"Assigned for manual review",  actor:"Marcus Patel",          time:"D-4" },
             { action:"Approved by Network Admin",   actor:"Marcus Patel",          time:selDeal.approvedDate },
           ].map(a => `
@@ -3417,7 +3570,7 @@ const ISSUER_LIBRARY_DEALS = [
     startDate:"09/17/2026", endDate:"Open",
     activeDays:[0,4,5,6],
     category:"Footwear",
-    description:"Buy one pair, get one free for Valentine's Day. $40 cashback per qualifying purchase.",
+    description:"Buy one pair on February, get $40 refund for Valentine's Day. $40 cashback per qualifying purchase.",
     estimatedMembers: 3265,
     tags:["fashion","valentines","shoes"],
   },
@@ -3431,7 +3584,7 @@ const ISSUER_LIBRARY_DEALS = [
     startDate:"06/01/2026", endDate:"08/31/2026",
     activeDays:[0,1,2,3,4,5,6],
     category:"Travel",
-    description:"15% off hotel stays across the Marriott portfolio. Valid for bookings made through Priceless.",
+    description:"15% off hotel stays across the Marriott portfolio. Valid for bookings made through Mastercard.",
     estimatedMembers: 8200,
     tags:["travel","hotels","summer"],
   },
@@ -3484,7 +3637,7 @@ const ISSUER_LIFECYCLE_DEALS = [
   { id:"lc2", title:"Summer Getaway 15% Off Hotels",    merchant:"Marriott", merchantColor:"#8B0000", merchantInitials:"MR", funding:"merchant", activatedDate:"02/12/2026", status:"Active",  redemptions:2840, budget:"$30,000", consumed:61 },
   { id:"lc3", title:"$50 Off First Smart TV Purchase",  merchant:"Samsung",  merchantColor:"#0D47A1", merchantInitials:"SM", funding:"cofunded", activatedDate:"03/03/2026", status:"Active",  redemptions:1330, budget:"$45,000", consumed:37 },
   { id:"lc4", title:"Free Delivery — 30 Days",          merchant:"DoorDash", merchantColor:"#E65100", merchantInitials:"DD", funding:"merchant", activatedDate:"12/06/2025", status:"Paused",  redemptions:9200, budget:"$20,000", consumed:95 },
-  { id:"lc5", title:"Back-to-School Laptop Bonus",      merchant:"BestBuy",  merchantColor:"#0D47A1", merchantInitials:"BB", funding:"issuer",   activatedDate:"08/15/2025", status:"Expired", redemptions:4400, budget:"$40,000", consumed:100 },
+  { id:"lc5", title:"Sunrise Balloon Escape",           merchant:"Vuelo Colombia", merchantColor:"#B85C38", merchantInitials:"VC", funding:"issuer",   activatedDate:"08/15/2025", status:"Expired", redemptions:4400, budget:"$40,000", consumed:100 },
 ];
 
 function issuerShell(content, activePath) {
@@ -3523,7 +3676,7 @@ function issuerShell(content, activePath) {
           <div class="user-info">
             <div class="user-name">Avery Coleman</div>
             <div class="user-role">Offer Manager · BBVA</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇺🇸 United States</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">🇨🇴 Colombia</div>
           </div>
           ${icon("arrow-square-out","user-ext")}
         </div>
@@ -4410,7 +4563,12 @@ function bindEvents() {
     el.addEventListener("click", () => {
       state.benefit.type = el.dataset.benefitType;
       markCurrentBenefitDirtyForReview();
-      save(); render();
+      save();
+      if (state.screen === S.merchantNew) {
+        renderPreservingWizardFormScroll();
+      } else {
+        render();
+      }
     });
   });
 
@@ -4749,6 +4907,11 @@ function bindEvents() {
 
 function handleAction(action, el) {
   switch (action) {
+    case "toggle-tc":
+      state.tcAccepted = !state.tcAccepted;
+      save();
+      render();
+      break;
     case "send-otp": {
       const email = document.getElementById("reg-email")?.value || "";
       if (email) { state.merchantEmail = email; save(); }
@@ -4800,6 +4963,17 @@ function handleAction(action, el) {
         navigate(S.merchantNew);
       }
       break;
+    case "open-ai-image-gen":
+      // Placeholder: AI image generation — no flow required
+      break;
+    case "upload-tc-doc":
+      // Placeholder: TC document upload — triggers file input
+      break;
+    case "clear-tc-doc":
+      state.benefit.tcDoc = "";
+      save();
+      renderPreservingWizardFormScroll();
+      break;
     case "open-media-editor":
       state.mediaEditor = parseInt(el.dataset.mediaIndex, 10);
       save();
@@ -4837,6 +5011,21 @@ function handleAction(action, el) {
     case "close-issuer-detail":
       state.selectedIssuerId = null;
       save(); render();
+      break;
+    case "toggle-deal-preview":
+      state.network.previewOpen = !state.network.previewOpen;
+      save(); render();
+      break;
+    case "close-priceless-preview":
+      state.network.selectedDealId = null;
+      save(); render();
+      break;
+    case "open-priceless-landing":
+      state.network.previewOpen = false;
+      save(); navigate(S.pricelessColombia);
+      break;
+    case "back-from-landing":
+      navigate(S.networkDetail);
       break;
     case "back-to-queue":
       state.network.queueView = "list";
