@@ -61,7 +61,7 @@ const PRICELESS_COLOMBIA_FOOTER = "assets/priceless-colombia-footer.png";
 const QUEUE_DEAL_PREVIEW_IMAGES = {
   q1: "assets/shoes.jpg",
   q2: "assets/ropamujer2.jpg",
-  q3: "assets/experience2.jpg",
+  q3: "assets/experience.jpg",
 };
 const DEFAULT_MEDIA_LIBRARY = [
   { name: "shoes.jpg", src: "assets/shoes.jpg", title: "2-for-1", alt: "Valentine shoes visual" },
@@ -69,6 +69,38 @@ const DEFAULT_MEDIA_LIBRARY = [
   { name: "ropamujer.jpg", src: "assets/ropamujer.jpg", title: "New arrivals", alt: "Selected pairs visual" },
   { name: "spa.jpg", src: "assets/spa.jpg", title: "Cashback", alt: "Scan to redeem visual" },
 ];
+const BENEFIT_MEDIA_PRESETS = {
+  b1: [
+    { label: "Main", name: "macdonalds.jpg", src: "assets/macdonalds.jpg", title: "Breakfast deal", alt: "Breakfast offer visual" },
+    { label: "Secondary", name: "experience.jpg", src: "assets/experience.jpg", title: "Morning out", alt: "Morning lifestyle visual" },
+    { label: "Extra", name: "spa.jpg", src: "assets/spa.jpg", title: "Reward", alt: "Member reward visual" },
+  ],
+  b2: [
+    { label: "Main", name: "ropamujer2.jpg", src: "assets/ropamujer2.jpg", title: "Everyday cashback", alt: "Lifestyle cashback visual" },
+    { label: "Secondary", name: "travel.jpg", src: "assets/travel.jpg", title: "Member value", alt: "Travel reward visual" },
+    { label: "Extra", name: "spa.jpg", src: "assets/spa.jpg", title: "Benefit code", alt: "Benefit code visual" },
+  ],
+  b3: [
+    { label: "Main", name: "macdonalds.jpg", src: "assets/macdonalds.jpg", title: "Pantry essentials", alt: "Food essentials visual" },
+    { label: "Secondary", name: "travel.jpg", src: "assets/travel.jpg", title: "Weekly savings", alt: "Savings lifestyle visual" },
+    { label: "Extra", name: "spa.jpg", src: "assets/spa.jpg", title: "Member code", alt: "Member code visual" },
+  ],
+  b4: [
+    { label: "Main", name: "shoes.jpg", src: "assets/shoes.jpg", title: "School shoes", alt: "School shoes visual" },
+    { label: "Secondary", name: "experience2.jpg", src: "assets/experience2.jpg", title: "Back to class", alt: "Back to school lifestyle visual" },
+    { label: "Extra", name: "ropamujer.jpg", src: "assets/ropamujer.jpg", title: "New arrivals", alt: "School apparel visual" },
+  ],
+  b5: [
+    { label: "Main", name: "experience2.jpg", src: "assets/experience2.jpg", title: "Smartphone bonus", alt: "Tech promotion visual" },
+    { label: "Secondary", name: "travel.jpg", src: "assets/travel.jpg", title: "Upgrade", alt: "Upgrade lifestyle visual" },
+    { label: "Extra", name: "spa.jpg", src: "assets/spa.jpg", title: "Member code", alt: "Member code visual" },
+  ],
+  b6: [
+    { label: "Main", name: "sauna.jpg", src: "assets/sauna.jpg", title: "Cleaning days", alt: "Clean home mood visual" },
+    { label: "Secondary", name: "spa.jpg", src: "assets/spa.jpg", title: "Fresh start", alt: "Fresh start visual" },
+    { label: "Extra", name: "travel.jpg", src: "assets/travel.jpg", title: "Reward", alt: "Reward visual" },
+  ],
+};
 
 function defaultBenefitDraft() {
   return {
@@ -155,6 +187,10 @@ function getPrimaryMediaSrc(assets, fallback = "") {
 
 function getQueueDealPreviewSrc(deal) {
   return QUEUE_DEAL_PREVIEW_IMAGES[deal?.id] || buildMockMediaAsset("hero", deal?.title?.slice(0, 14) || "Deal", deal?.merchant || "");
+}
+
+function getBenefitMediaPreset(benefitId) {
+  return BENEFIT_MEDIA_PRESETS[benefitId] || DEFAULT_MEDIA_LIBRARY;
 }
 
 function loadBenefitIntoWizard(benefitId) {
@@ -1393,6 +1429,22 @@ function renderBenefits() {
     title: selectedBenefit?.title || DEMO_BENEFIT_DETAIL.title,
     status: selectedBenefit?.status || DEMO_BENEFIT_DETAIL.status,
   };
+  const benefitDraft = selectedBenefit?.draft
+    ? normalizeBenefitDraft({ ...defaultBenefitDraft(), ...selectedBenefit.draft })
+    : {
+        ...defaultBenefitDraft(),
+        mediaAssets: defaultBenefitDraft().mediaAssets.map((asset, index) => {
+          const preset = getBenefitMediaPreset(selectedBenefit?.id)[index];
+          return {
+            ...asset,
+            label: preset?.label || asset.label,
+            name: preset?.name || "",
+            src: preset?.src || "",
+            title: preset?.title || "",
+            alt: preset?.alt || "",
+          };
+        }),
+      };
   const days = ["D","L","M","M","J","V","S"];
   const dayPills = days.map((day,i) =>
     `<span class="day-pill ${d.activeDays.includes(i)?"":"off"}">${day}</span>`
@@ -1408,16 +1460,12 @@ function renderBenefits() {
       <span>${item.text}</span>
     </div>
   `).join("");
-  const imgs = d.images.map(im => `
+  const imgs = (benefitDraft.mediaAssets || []).filter(asset => asset.src).map(asset => `
     <div class="detail-img-card">
-      <div class="img-area detail-img-area detail-img-${im.kind}">
-        <div class="detail-img-overlay">
-          <div class="detail-img-kicker">${im.title}</div>
-          <div class="detail-img-sub">${im.sub}</div>
-        </div>
-        <div class="detail-img-art">${icon(im.kind === "code" ? "qr-code" : im.kind === "product" ? "high-heel" : im.kind === "lifestyle" ? "heart" : "sparkle","ph-2x")}</div>
+      <div class="img-area detail-img-area">
+        <img src="${asset.src}" alt="${asset.alt || asset.label}" class="detail-img-photo" />
       </div>
-      <div class="img-label">${im.label}</div>
+      <div class="img-label">${asset.label}</div>
     </div>`).join("");
 
   const detailPane = sel ? `
@@ -2640,8 +2688,8 @@ function renderPricelessLanding() {
   const offers = [
     { id:"live", title: liveTitle,                                                                                     brand:"Zappos",        category:"Calzado",      img: liveHeroSrc,                  isNew:true },
     { id:"cl1",  title:"Disfruta 20% de descuento todos los días en la web y app de McDonald's",                       brand:"McDonald's",     category:"Gastronomía",  img:"assets/macdonalds.jpg" },
-    { id:"cl2",  title:"Aventura extrema: senderismo y puentes colgantes en los Andes",                               brand:"Adventure CO",   category:"Experiencias", img:"assets/experience.jpg" },
-    { id:"cl3",  title:"Experiencia en globo aerostático sobre el altiplano colombiano",                               brand:"Vuelo Colombia", category:"Experiencias", img:"assets/experience2.jpg" },
+    { id:"cl2",  title:"Aventura extrema: senderismo y puentes colgantes en los Andes",                               brand:"Adventure CO",   category:"Experiencias", img:"assets/experience2.jpg" },
+    { id:"cl3",  title:"Experiencia en globo aerostático sobre el altiplano colombiano",                               brand:"Vuelo Colombia", category:"Experiencias", img:"assets/experience.jpg" },
     { id:"cl4",  title:"Hasta 30% Off en moda y tendencias — colección seleccionada",                                 brand:"Levi's",         category:"Moda",         img:"assets/ropamujer.jpg" },
     { id:"cl5",  title:"Nueva colección con descuento exclusivo para tarjetahabientes Mastercard",                     brand:"Studio Fashion", category:"Moda",         img:"assets/ropamujer2.jpg" },
     { id:"cl6",  title:"Ritual de bienestar: sauna, jacuzzi y masajes con 25% Off",                                   brand:"Spa Premium",   category:"Bienestar",    img:"assets/sauna.jpg" },
